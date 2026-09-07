@@ -1,4 +1,4 @@
-# rpg-game
+# rogue-engine
 
 A heavily work in progress game and game engine written in c++ and opengl
 
