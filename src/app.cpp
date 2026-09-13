@@ -5,8 +5,6 @@
 #include "utils/file.hpp"
 #include "utils/math/ray.hpp"
 
-#include "renderer/mesh_compiler.hpp"
-
 App::App()
 {
     Physics::Engine::setup_singletons();
@@ -32,18 +30,6 @@ App::App()
 
     m_app_data.m_gizmo.init(&m_app_data);
     m_app_data.m_entity_selector.init(m_scene, &m_app_data);
-
-    // Utils::ByteStream bytes;
-    // Renderer::compile_mesh(bytes, "res/models/Sponza/glTF/Sponza.gltf", &m_app_data);
-    // auto result = Utils::write_file("test_file.rbin", { (char*)bytes.data(), bytes.size() });
-
-    // std::vector<char> file;
-    // bool result = Utils::read_file(file, "test_file.rbin");
-    // if (result) {
-    //     Renderer::Mesh mesh;
-    //     Renderer::load_compiled_mesh(mesh, { (u8*)file.data(), file.size() }, &m_app_data);
-    // }
-    // util_error("Testing this bin");
 
     Renderer::SkyboxInfo skybox_info {};
     skybox_info.file = "res/skyboxes/Cubemap_Sky_14-512x512.png";
