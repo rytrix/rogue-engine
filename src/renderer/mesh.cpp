@@ -2,12 +2,7 @@
 
 #include "model.hpp"
 
-#include "../utils/helpers.hpp"
-#include "assimp/material.h"
-
 #include "../app_data.hpp"
-
-#include "model.hpp"
 
 namespace Renderer {
 
@@ -45,6 +40,7 @@ Mesh::Mesh(const char* path, GlobalAppData* app_data)
 Mesh::~Mesh()
 {
     initialized = false;
+    drop_texture_memory();
 }
 
 void Mesh::update(u32 instance_count, const std::span<glm::mat4> transform_matrices, const std::span<AnimationData*> animation_data)
@@ -179,17 +175,17 @@ void Mesh::draw(Shader& shader)
     } else {
         for (usize i = 0; i < m_commands.size(); i++) {
             GLuint texture_unit = Texture::get_texture_unit();
-            auto* diffuse_texture = m_app_data->m_texture_cache.get(m_diffuse_textures[i]);
+            auto* diffuse_texture = m_app_data->m_texture_cache.get(m_texture_data.m_diffuse_textures[i]);
             diffuse_texture->bind(texture_unit);
             shader.set_int("tex_diffuse", static_cast<int>(texture_unit));
 
             texture_unit = Texture::get_texture_unit();
-            auto* metallic_roughness_texture = m_app_data->m_texture_cache.get(m_metallic_roughness_textures[i]);
+            auto* metallic_roughness_texture = m_app_data->m_texture_cache.get(m_texture_data.m_metallic_roughness_textures[i]);
             metallic_roughness_texture->bind(texture_unit);
             shader.set_int("tex_metallic_roughness", static_cast<int>(texture_unit));
 
             texture_unit = Texture::get_texture_unit();
-            auto* normal_texture = m_app_data->m_texture_cache.get(m_normal_textures[i]);
+            auto* normal_texture = m_app_data->m_texture_cache.get(m_texture_data.m_normal_textures[i]);
             normal_texture->bind(texture_unit);
             shader.set_int("tex_normals", static_cast<int>(texture_unit));
 
@@ -213,6 +209,62 @@ ModelResult Mesh::get_result()
     return m_result;
 }
 
+void Mesh::upload_texture_memory_to_gpu()
+{
+    std::vector<Handle> handles;
+    handles.resize(m_texture_data.m_texture_memory.size());
+
+    for (usize i = 0; i < m_texture_data.m_texture_memory.size(); i++) {
+        TextureInfo info {};
+        info.texture_loaded = true;
+        info.texture_memory = m_texture_data.m_texture_memory[i];
+        info.min_filter = GL_LINEAR_MIPMAP_LINEAR;
+        info.mag_filter = GL_LINEAR;
+        info.mipmaps = true;
+        info.mipmap_levels = 0;
+
+        auto handle = m_app_data->m_texture_cache.create(info);
+        auto* texture = m_app_data->m_texture_cache.get(handle);
+        texture->set_max_anisotropy(16);
+        handles[i] = handle;
+    }
+
+    for (usize i = 0; i < m_texture_data.m_diffuse_textures_memory.size(); i++) {
+        u32 index = m_texture_data.m_diffuse_textures_memory[i];
+        if (index == UINT32_MAX) {
+            m_texture_data.m_diffuse_textures.emplace_back(m_app_data->m_default_textures.get_albedo());
+        } else {
+            m_texture_data.m_diffuse_textures.emplace_back(handles[index]);
+        }
+
+        index = m_texture_data.m_metallic_roughness_textures_memory[i];
+        if (index == UINT32_MAX) {
+            m_texture_data.m_metallic_roughness_textures.emplace_back(m_app_data->m_default_textures.get_metallic());
+        } else {
+            m_texture_data.m_metallic_roughness_textures.emplace_back(handles[index]);
+        }
+
+        index = m_texture_data.m_normal_textures_memory[i];
+        if (index == UINT32_MAX) {
+            m_texture_data.m_normal_textures.emplace_back(m_app_data->m_default_textures.get_normal());
+        } else {
+            m_texture_data.m_normal_textures.emplace_back(handles[index]);
+        }
+    }
+}
+
+void Mesh::drop_texture_memory()
+{
+    for (usize i = 0; i < m_texture_data.m_texture_memory.size(); i++) {
+        m_texture_data.m_texture_memory[i].deinit();
+    }
+
+    m_texture_data.m_texture_memory.clear();
+    m_texture_data.m_diffuse_textures_memory.clear();
+    m_texture_data.m_metallic_roughness_textures_memory.clear();
+    m_texture_data.m_normal_textures_memory.clear();
+}
+
 void Mesh::setup_mesh()
 {
     util_assert(initialized == false, "already initialized");
@@ -223,8 +275,8 @@ void Mesh::setup_mesh()
 
     m_vao.bind();
 
-    m_vbo.buffer_data(static_cast<i64>(m_vertex_data.m_vertices.size() * sizeof(Vertex)), m_vertex_data.m_vertices.data(), GL_STATIC_DRAW);
-    m_ebo.buffer_data(static_cast<i64>(m_vertex_data.m_indices.size() * sizeof(u32)), m_vertex_data.m_indices.data(), GL_STATIC_DRAW);
+    m_vbo.buffer_data(static_cast<i64>(m_vertex_data_view.m_vertices.size() * sizeof(Vertex)), m_vertex_data_view.m_vertices.data(), GL_STATIC_DRAW);
+    m_ebo.buffer_data(static_cast<i64>(m_vertex_data_view.m_indices.size() * sizeof(u32)), m_vertex_data_view.m_indices.data(), GL_STATIC_DRAW);
 
     m_vao.bind_vertex_buffer(0, m_vbo.get_id(), 0, sizeof(Vertex));
     m_vao.bind_element_buffer(m_ebo.get_id());
@@ -236,21 +288,21 @@ void Mesh::setup_mesh()
 
     if (m_has_bones) {
         m_bones_vbo.init();
-        m_bones_vbo.buffer_data(static_cast<i64>(m_vertex_data.m_bones.size() * sizeof(VertexBone)), m_vertex_data.m_bones.data(), GL_STATIC_DRAW);
+        m_bones_vbo.buffer_data(static_cast<i64>(m_vertex_data_view.m_bones.size() * sizeof(VertexBone)), m_vertex_data_view.m_bones.data(), GL_STATIC_DRAW);
         m_vao.bind_vertex_buffer(1, m_bones_vbo.get_id(), 0, sizeof(VertexBone));
 
         m_vao.vertex_attrib_int(4, 1, MAX_BONES_PER_VERTEX, GL_INT, 0);
         m_vao.vertex_attrib(5, 1, MAX_BONES_PER_VERTEX, GL_FLOAT, MAX_BONES_PER_VERTEX * sizeof(GLint));
     }
 
-    m_commands.resize(m_base_vertices.size());
+    m_commands.resize(m_vertex_data_view.m_base_vertices.size());
 
-    for (usize i = 0; i < m_base_vertices.size(); i++) {
-        m_commands[i].count = m_base_vertices.at(i).m_count;
+    for (usize i = 0; i < m_vertex_data_view.m_base_vertices.size(); i++) {
+        m_commands[i].count = m_vertex_data_view.m_base_vertices[i].m_count;
         m_commands[i].instance_count = m_instance_count;
-        m_commands[i].first_index = m_base_vertices.at(i).m_offset; // * sizeof(GLuint);
+        m_commands[i].first_index = m_vertex_data_view.m_base_vertices[i].m_offset; // * sizeof(GLuint);
         m_commands[i].base_instance = 0;
-        m_commands[i].base_vertex = m_base_vertices.at(i).m_base;
+        m_commands[i].base_vertex = m_vertex_data_view.m_base_vertices[i].m_base;
     }
 
     if (Renderer::Extensions::is_extension_supported("GL_ARB_bindless_texture")) {
@@ -261,24 +313,25 @@ void Mesh::setup_mesh()
         m_texture_bindless_ids.resize(m_commands.size() * 3);
         for (usize i = 0; i < m_commands.size(); i++) {
             // 1 diffuse 1 metallic_roughness 1 normal
-            auto* diffuse_texture = m_app_data->m_texture_cache.get(m_diffuse_textures[i]);
+            auto* diffuse_texture = m_app_data->m_texture_cache.get(m_texture_data.m_diffuse_textures[i]);
             m_texture_bindless_ids.at((i * 3) + 0) = diffuse_texture->get_bindless_texture_id();
             if (!diffuse_texture->is_bindless_texture_mapped()) {
                 diffuse_texture->map_bindless_texture();
             }
 
-            auto* metallic_roughness_texture = m_app_data->m_texture_cache.get(m_metallic_roughness_textures[i]);
+            auto* metallic_roughness_texture = m_app_data->m_texture_cache.get(m_texture_data.m_metallic_roughness_textures[i]);
             m_texture_bindless_ids.at((i * 3) + 1) = metallic_roughness_texture->get_bindless_texture_id();
             if (!metallic_roughness_texture->is_bindless_texture_mapped()) {
                 metallic_roughness_texture->map_bindless_texture();
             }
 
-            auto* normal_texture = m_app_data->m_texture_cache.get(m_normal_textures[i]);
+            auto* normal_texture = m_app_data->m_texture_cache.get(m_texture_data.m_normal_textures[i]);
             m_texture_bindless_ids.at((i * 3) + 2) = normal_texture->get_bindless_texture_id();
             if (!normal_texture->is_bindless_texture_mapped()) {
                 normal_texture->map_bindless_texture();
             }
         }
+
         if (m_texture_bindless_ids.size() > 0) {
             m_texture_ssbo.buffer_storage(m_texture_bindless_ids.size() * sizeof(GLuint64), m_texture_bindless_ids.data(), 0);
         }

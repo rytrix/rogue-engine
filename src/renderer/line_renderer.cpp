@@ -254,7 +254,12 @@ void LineRenderer::setup_shader()
 {
     ShaderInfoData<2> out;
 
-    std::vector<char> text_shader_file = read_file<char>("res/shaders/debug/lines.glsl");
+    const char* file_name = "res/shaders/debug/lines.glsl";
+    std::vector<char> text_shader_file;
+    auto result = Utils::read_file(text_shader_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view text_shader_file_view = { text_shader_file.data(), text_shader_file.size() };
 
     // Vertex Shader

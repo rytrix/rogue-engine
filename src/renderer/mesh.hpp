@@ -17,26 +17,6 @@ class GlobalAppData;
 
 namespace Renderer {
 
-struct IndirectCommands {
-    GLuint count;
-    GLuint instance_count;
-    GLuint first_index;
-    GLint base_vertex;
-    GLuint base_instance;
-};
-
-struct BaseVertex {
-    GLsizei m_count {};
-    GLsizei m_base {};
-    GLuint m_offset {};
-
-    BaseVertex(GLsizei count, GLsizei base)
-        : m_count(count)
-        , m_base(base)
-    {
-    }
-};
-
 static constexpr u32 MAX_BONES = 150;
 static constexpr u32 MAX_BONES_PER_VERTEX = 4;
 
@@ -57,6 +37,7 @@ struct VertexBone {
 
 class Mesh : public NoCopyNoMove {
     friend class ModelLoader;
+    friend class MeshCompiler;
 
 public:
     struct Vertex {
@@ -66,10 +47,41 @@ public:
         glm::vec3 m_tang;
     };
 
+    struct BaseVertex {
+        GLsizei m_count {};
+        GLsizei m_base {};
+        GLuint m_offset {};
+
+        BaseVertex(GLsizei count, GLsizei base)
+            : m_count(count)
+            , m_base(base)
+        {
+        }
+    };
+
     struct VertexData {
+        std::vector<BaseVertex> m_base_vertices;
         std::vector<Vertex> m_vertices;
         std::vector<VertexBone> m_bones;
         std::vector<u32> m_indices;
+    };
+
+    struct VertexDataView {
+        std::span<BaseVertex> m_base_vertices;
+        std::span<Vertex> m_vertices;
+        std::span<VertexBone> m_bones;
+        std::span<u32> m_indices;
+    };
+
+    struct TextureData {
+        std::vector<TextureMemory> m_texture_memory;
+        std::vector<u32> m_diffuse_textures_memory;
+        std::vector<u32> m_metallic_roughness_textures_memory;
+        std::vector<u32> m_normal_textures_memory;
+
+        std::vector<Handle> m_diffuse_textures;
+        std::vector<Handle> m_metallic_roughness_textures;
+        std::vector<Handle> m_normal_textures;
     };
 
     Mesh(const char* path, GlobalAppData* app_data);
@@ -83,26 +95,36 @@ public:
 
     ModelResult get_result();
 
+    void upload_texture_memory_to_gpu();
+    void drop_texture_memory();
+
+private:
     VertexData m_vertex_data;
-
-    std::vector<Handle> m_diffuse_textures;
-    std::vector<Handle> m_metallic_roughness_textures;
-    std::vector<Handle> m_normal_textures;
-
-    std::vector<Utils::AABB> m_aabbs;
+    // mesh has to own serialized bytes since the memory is not copied
+    std::vector<char> m_serialized_bytes;
+public:
+    VertexDataView m_vertex_data_view;
+    TextureData m_texture_data;
 
     bool m_has_bones = false;
     std::unordered_map<Utils::String, u32> m_bone_id_map;
-
-    GlobalAppData* m_app_data = nullptr;
-
-    std::vector<BaseVertex> m_base_vertices;
-
     std::deque<Animation> m_animations;
+
+    std::vector<Utils::AABB> m_aabbs;
 
     Utils::String m_path;
 
+    GlobalAppData* m_app_data = nullptr;
+
 private:
+    struct IndirectCommands {
+        GLuint count;
+        GLuint instance_count;
+        GLuint first_index;
+        GLint base_vertex;
+        GLuint base_instance;
+    };
+
     void setup_mesh();
 
     void update_instance_count(u32 instance_count);
@@ -114,7 +136,7 @@ private:
 
     bool initialized = false;
 
-    ModelResult m_result;
+    ModelResult m_result {};
     bool m_result_checked = false;
 
     VertexArray m_vao;

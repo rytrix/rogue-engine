@@ -57,7 +57,7 @@ void ShadowMap::init_internal(MapType map_type)
     } else {
         shadowmap_info.dimensions = GL_TEXTURE_2D;
     }
-    shadowmap_info.size = Renderer::TextureSize { .width = m_shadow_width, .height = m_shadow_height, .depth = m_cascades };
+    shadowmap_info.memory_info.size = Renderer::TextureSize { .width = m_shadow_width, .height = m_shadow_height, .depth = m_cascades };
     shadowmap_info.internal_format = GL_DEPTH_COMPONENT24;
     shadowmap_info.wrap_s = GL_CLAMP_TO_BORDER;
     shadowmap_info.wrap_t = GL_CLAMP_TO_BORDER;

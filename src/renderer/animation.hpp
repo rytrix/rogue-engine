@@ -3,6 +3,7 @@
 #include <assimp/scene.h>
 #include <memory_resource>
 
+#include "../utils/bytestream.hpp"
 #include "../utils/string.hpp"
 
 namespace Renderer {
@@ -61,13 +62,13 @@ private:
 struct PerAnimationData;
 
 struct Animation {
-    std::string m_name;
+    Utils::String m_name;
 
     void init(const aiScene* scene, const aiAnimation* animation,
         const std::unordered_map<Utils::String, u32>& bone_indices,
         const glm::mat4& global_inverse_transform);
 
-    PerAnimationData* create_per_animation_data();
+    [[nodiscard]] PerAnimationData* create_per_animation_data();
     static void update_transforms(PerAnimationData* data);
     static void update_transforms_blended(PerAnimationData* first, PerAnimationData* second, float factor);
 
@@ -75,6 +76,9 @@ struct Animation {
     void set_ticks_per_second(float ticks_per_second) { m_ticks_per_second = ticks_per_second; };
 
     [[nodiscard]] float get_total_animation_time() const { return m_total_animation_time; };
+
+    void serialize(Utils::ByteStream& bytestream) const;
+    [[nodiscard]] u8* deserialize(u8* start_ptr);
 
 private:
     // Allocate with an arena

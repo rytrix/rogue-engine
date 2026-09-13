@@ -114,9 +114,9 @@ void TextRenderer::setup_atlas()
     info.wrap_t = GL_CLAMP_TO_EDGE;
     info.wrap_r = GL_CLAMP_TO_EDGE;
     info.internal_format = GL_R8;
-    info.size.width = ATLAS_WIDTH;
-    info.size.height = (GLint)m_pixel_height;
-    info.size.depth = 1;
+    info.memory_info.size.width = ATLAS_WIDTH;
+    info.memory_info.size.height = (GLint)m_pixel_height;
+    info.memory_info.size.depth = 1;
     m_texture_atlas.init(info);
 
     m_characters.resize(CHAR_MAX);
@@ -177,7 +177,12 @@ void TextRenderer::setup_shader()
 {
     ShaderInfoData<2> out;
 
-    std::vector<char> text_shader_file = read_file<char>("res/shaders/text_rendering/text_combined.glsl");
+    const char* file_name = "res/shaders/text_rendering/text_combined.glsl";
+    std::vector<char> text_shader_file;
+    auto result = Utils::read_file(text_shader_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view text_shader_file_view = { text_shader_file.data(), text_shader_file.size() };
 
     // Vertex Shader

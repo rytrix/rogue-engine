@@ -29,6 +29,7 @@ namespace {
     }
 
 } // Anonymous namespace
+
 RandomSamplingTexture RandomSamplingTexture::create(i32 window_size, i32 filter_size, i32 radius, TextureCache* cache)
 {
     Handle handle = create_random_sampling_texture(window_size, filter_size, cache);
@@ -91,10 +92,10 @@ Handle RandomSamplingTexture::create_random_sampling_texture(i32 window_size, in
     texture_info.mipmaps = false;
     texture_info.dimensions = GL_TEXTURE_3D;
     texture_info.internal_format = GL_RGBA32F;
-    texture_info.size = { .width = num_filter_samples / 2, .height = window_size, .depth = window_size };
+    texture_info.memory_info.size = { .width = num_filter_samples / 2, .height = window_size, .depth = window_size };
 
     TextureSubimageInfo subimage_info;
-    subimage_info.size = texture_info.size;
+    subimage_info.size = texture_info.memory_info.size;
     subimage_info.format = GL_RGBA;
     subimage_info.type = GL_FLOAT;
     subimage_info.pixels = data.data();

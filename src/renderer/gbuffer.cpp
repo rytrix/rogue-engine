@@ -12,7 +12,7 @@ void GBuffer::init(int screen_width, int screen_height)
     m_buffer.init();
 
     Renderer::TextureInfo texture_info;
-    texture_info.size = Renderer::TextureSize { .width = screen_width, .height = screen_height, .depth = 0 };
+    texture_info.memory_info.size = Renderer::TextureSize { .width = screen_width, .height = screen_height, .depth = 0 };
     texture_info.internal_format = GL_RGBA16F;
     texture_info.mipmaps = GL_FALSE;
     m_position.init(texture_info);

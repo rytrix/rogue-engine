@@ -17,6 +17,7 @@ private:
     void fps_counter();
 
     bool m_vsync = true;
+    bool m_draw_bodies = false;
     u32 m_fps = 0;
 
     GlobalAppData m_app_data;

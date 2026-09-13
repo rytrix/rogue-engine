@@ -1,7 +1,7 @@
 #include "scene.hpp"
 
-#include "../physics/helpers.hpp"
-#include "../physics/interface.hpp"
+#include "../physics_jolt/helpers.hpp"
+#include "../physics_jolt/interface.hpp"
 
 #include "../utils/assert.hpp"
 #include "../utils/file.hpp"
@@ -17,7 +17,13 @@ namespace {
 
 constexpr void get_pbr_forward_pass_indirect(ShaderInfoData<2>& out, const std::string& light_uniforms, const std::string& light_functions, const std::string& vert_defines, const std::string& frag_defines)
 {
-    std::vector<char> pbr_file = read_file<char>("res/shaders/forward_pass/pbr_combined.glsl");
+
+    const char* file_name = "res/shaders/forward_pass/pbr_combined.glsl";
+    std::vector<char> pbr_file;
+    auto result = Utils::read_file(pbr_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view pbr_file_view = { pbr_file.data(), pbr_file.size() };
 
     // Vertex Shader
@@ -39,7 +45,12 @@ constexpr void get_pbr_forward_pass_indirect(ShaderInfoData<2>& out, const std::
 
 constexpr void get_pbr_forward_pass_normal(ShaderInfoData<2>& out, const std::string& light_uniforms, const std::string& light_functions, const std::string& vert_defines, const std::string& frag_defines)
 {
-    std::vector<char> pbr_file = read_file<char>("res/shaders/forward_pass/pbr_combined.glsl");
+    const char* file_name = "res/shaders/forward_pass/pbr_combined.glsl";
+    std::vector<char> pbr_file;
+    auto result = Utils::read_file(pbr_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view pbr_file_view = { pbr_file.data(), pbr_file.size() };
 
     // Vertex Shader
@@ -61,7 +72,13 @@ constexpr void get_pbr_forward_pass_normal(ShaderInfoData<2>& out, const std::st
 
 constexpr void get_shadow_pass_basic_shaders(ShaderInfoData<2>& out, const std::string& vert_defines, const std::string& frag_defines)
 {
-    std::vector<char> shadow_file = read_file<char>("res/shaders/forward_pass/shadow_pass_basic.glsl");
+
+    const char* file_name = "res/shaders/forward_pass/shadow_pass_basic.glsl";
+    std::vector<char> shadow_file;
+    auto result = Utils::read_file(shadow_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view shadow_file_view = { shadow_file.data(), shadow_file.size() };
 
     // Vertex Shader
@@ -79,7 +96,12 @@ constexpr void get_shadow_pass_basic_shaders(ShaderInfoData<2>& out, const std::
 
 constexpr void get_shadow_pass_point_shaders(ShaderInfoData<2>& out, const std::string& vert_defines, const std::string& frag_defines)
 {
-    std::vector<char> shadow_file = read_file<char>("res/shaders/forward_pass/shadow_pass_point.glsl");
+    const char* file_name = "res/shaders/forward_pass/shadow_pass_point.glsl";
+    std::vector<char> shadow_file;
+    auto result = Utils::read_file(shadow_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view shadow_file_view = { shadow_file.data(), shadow_file.size() };
 
     // Vertex Shader
@@ -97,7 +119,12 @@ constexpr void get_shadow_pass_point_shaders(ShaderInfoData<2>& out, const std::
 
 constexpr void get_shadow_pass_point_geometry_shaders(ShaderInfoData<3>& out, const std::string& vert_defines, const std::string& frag_defines)
 {
-    std::vector<char> shadow_file = read_file<char>("res/shaders/forward_pass/shadow_pass_point_geometry.glsl");
+    const char* file_name = "res/shaders/forward_pass/shadow_pass_point_geometry.glsl";
+    std::vector<char> shadow_file;
+    auto result = Utils::read_file(shadow_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view shadow_file_view = { shadow_file.data(), shadow_file.size() };
 
     // Vertex Shader
@@ -119,7 +146,12 @@ constexpr void get_shadow_pass_point_geometry_shaders(ShaderInfoData<3>& out, co
 
 constexpr void get_wireframe_shaders(ShaderInfoData<2>& out, const std::string& vert_defines, const std::string& frag_defines)
 {
-    std::vector<char> pbr_file = read_file<char>("res/shaders/forward_pass/static_lines.glsl");
+    const char* file_name = "res/shaders/forward_pass/static_lines.glsl";
+    std::vector<char> pbr_file;
+    auto result = Utils::read_file(pbr_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view pbr_file_view = { pbr_file.data(), pbr_file.size() };
 
     // Vertex Shader
@@ -142,8 +174,6 @@ Scene::Scene(GlobalAppData* app_data)
     , m_random_sampling_texture(Renderer::RandomSamplingTexture::create(16, 8, 2, &app_data->m_texture_cache))
 {
     m_physics_system = std::make_unique<Physics::System>(this, app_data);
-
-    update();
 }
 
 Scene::~Scene()

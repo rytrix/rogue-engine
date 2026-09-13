@@ -190,6 +190,20 @@ StaticString<Capacity>& StaticString<Capacity>::format(std::format_string<Args..
 
 using String = StaticString<256>;
 
+template <typename... Args>
+String format(std::format_string<Args...> fmt, Args&&... args)
+{
+    Utils::String format_result;
+    format_result.format(fmt, std::forward<Args>(args)...);
+    return format_result;
+}
+
+constexpr String format(const char* fmt)
+{
+    Utils::String format_result(fmt);
+    return format_result;
+}
+
 } // namespace Utils
 
 template <>

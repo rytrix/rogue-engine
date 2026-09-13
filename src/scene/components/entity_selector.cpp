@@ -2,8 +2,8 @@
 
 #include "../../app_data.hpp"
 
-#include "../../physics/helpers.hpp"
-#include "../../physics/interface.hpp"
+#include "../../physics_jolt/helpers.hpp"
+#include "../../physics_jolt/interface.hpp"
 #include "imgui.h"
 
 EntitySelector::EntitySelector(Scene* scene, GlobalAppData* app_data)

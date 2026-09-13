@@ -62,6 +62,7 @@
 #include <stdfloat>
 #include <utility>
 #include <vector>
+#include <bitset>
 
 using usize = std::size_t;
 using u8 = uint8_t;

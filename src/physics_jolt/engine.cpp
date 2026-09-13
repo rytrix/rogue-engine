@@ -68,10 +68,10 @@ void System::create_mesh_triangle_list(JPH::TriangleList& triangles, const std::
         glm::vec3 v2;
         glm::vec3 v3;
         u32 j = 0;
-        while (j + 2 < mesh->m_vertex_data.m_indices.size()) {
-            v1 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 0)].m_pos;
-            v2 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 1)].m_pos;
-            v3 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 2)].m_pos;
+        while (j + 2 < mesh->m_vertex_data_view.m_indices.size()) {
+            v1 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 0]].m_pos;
+            v2 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 1]].m_pos;
+            v3 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 2]].m_pos;
             j += 3;
 
             JPH::Triangle triangle(vec3_to_float3(v1), vec3_to_float3(v2), vec3_to_float3(v3));
@@ -88,10 +88,10 @@ void System::create_mesh_triangle_list(JPH::TriangleList& triangles, const glm::
         glm::vec3 v2;
         glm::vec3 v3;
         u32 j = 0;
-        while (j + 2 < mesh->m_vertex_data.m_indices.size()) {
-            v1 = model * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 0)].m_pos, 1.0F);
-            v2 = model * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 1)].m_pos, 1.0F);
-            v3 = model * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 2)].m_pos, 1.0F);
+        while (j + 2 < mesh->m_vertex_data_view.m_indices.size()) {
+            v1 = model * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 0]].m_pos, 1.0F);
+            v2 = model * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 1]].m_pos, 1.0F);
+            v3 = model * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 2]].m_pos, 1.0F);
             j += 3;
 
             JPH::Triangle triangle(vec3_to_float3(v1), vec3_to_float3(v2), vec3_to_float3(v3));
@@ -103,18 +103,18 @@ void System::create_mesh_triangle_list(JPH::TriangleList& triangles, const glm::
 void System::create_mesh_triangle_list_base_index(JPH::TriangleList& triangles, const Renderer::Mesh* mesh)
 {
     usize offset = 0;
-    for (usize i = 0; i < mesh->m_base_vertices.size(); i++) {
+    for (usize i = 0; i < mesh->m_vertex_data_view.m_base_vertices.size(); i++) {
         glm::vec3 v1;
         glm::vec3 v2;
         glm::vec3 v3;
 
-        auto base = mesh->m_base_vertices[i].m_base;
-        auto count = mesh->m_base_vertices[i].m_count;
+        auto base = mesh->m_vertex_data_view.m_base_vertices[i].m_base;
+        auto count = mesh->m_vertex_data_view.m_base_vertices[i].m_count;
         u32 j = offset;
         while (j + 2 < count + offset) {
-            v1 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 0) + base].m_pos;
-            v2 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 1) + base].m_pos;
-            v3 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 2) + base].m_pos;
+            v1 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 0] + base].m_pos;
+            v2 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 1] + base].m_pos;
+            v3 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 2] + base].m_pos;
             j += 3;
 
             JPH::Triangle triangle(vec3_to_float3(v1), vec3_to_float3(v2), vec3_to_float3(v3));
@@ -128,18 +128,18 @@ void System::create_mesh_triangle_list_base_index(JPH::TriangleList& triangles, 
 void System::create_mesh_triangle_list_base_index(JPH::TriangleList& triangles, const glm::mat4& transform, const Renderer::Mesh* mesh)
 {
     usize offset = 0;
-    for (usize i = 0; i < mesh->m_base_vertices.size(); i++) {
+    for (usize i = 0; i < mesh->m_vertex_data_view.m_base_vertices.size(); i++) {
         glm::vec3 v1;
         glm::vec3 v2;
         glm::vec3 v3;
 
-        auto base = mesh->m_base_vertices[i].m_base;
-        auto count = mesh->m_base_vertices[i].m_count;
+        auto base = mesh->m_vertex_data_view.m_base_vertices[i].m_base;
+        auto count = mesh->m_vertex_data_view.m_base_vertices[i].m_count;
         u32 j = offset;
         while (j + 2 < count + offset) {
-            v1 = transform * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 0) + base].m_pos, 1.0F);
-            v2 = transform * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 1) + base].m_pos, 1.0F);
-            v3 = transform * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 2) + base].m_pos, 1.0F);
+            v1 = transform * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 0] + base].m_pos, 1.0F);
+            v2 = transform * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 1] + base].m_pos, 1.0F);
+            v3 = transform * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 2] + base].m_pos, 1.0F);
             j += 3;
 
             JPH::Triangle triangle(vec3_to_float3(v1), vec3_to_float3(v2), vec3_to_float3(v3));
@@ -153,18 +153,18 @@ void System::create_mesh_triangle_list_base_index(JPH::TriangleList& triangles, 
 void System::create_mesh_vec3s_base_index(JPH::Array<JPH::Vec3>& triangles, const Renderer::Mesh* mesh)
 {
     usize offset = 0;
-    for (usize i = 0; i < mesh->m_base_vertices.size(); i++) {
+    for (usize i = 0; i < mesh->m_vertex_data_view.m_base_vertices.size(); i++) {
         glm::vec3 v1;
         glm::vec3 v2;
         glm::vec3 v3;
 
-        auto base = mesh->m_base_vertices[i].m_base;
-        auto count = mesh->m_base_vertices[i].m_count;
+        auto base = mesh->m_vertex_data_view.m_base_vertices[i].m_base;
+        auto count = mesh->m_vertex_data_view.m_base_vertices[i].m_count;
         u32 j = offset;
         while (j + 2 < count + offset) {
-            v1 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 0) + base].m_pos;
-            v2 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 1) + base].m_pos;
-            v3 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 2) + base].m_pos;
+            v1 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 0] + base].m_pos;
+            v2 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 1] + base].m_pos;
+            v3 = mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 2] + base].m_pos;
             j += 3;
 
             triangles.push_back(vec3_to_vec3(v1));
@@ -179,18 +179,18 @@ void System::create_mesh_vec3s_base_index(JPH::Array<JPH::Vec3>& triangles, cons
 void System::create_mesh_vec3s_base_index(JPH::Array<JPH::Vec3>& triangles, const glm::mat4& transform, const Renderer::Mesh* mesh)
 {
     usize offset = 0;
-    for (usize i = 0; i < mesh->m_base_vertices.size(); i++) {
+    for (usize i = 0; i < mesh->m_vertex_data_view.m_base_vertices.size(); i++) {
         glm::vec3 v1;
         glm::vec3 v2;
         glm::vec3 v3;
 
-        auto base = mesh->m_base_vertices[i].m_base;
-        auto count = mesh->m_base_vertices[i].m_count;
+        auto base = mesh->m_vertex_data_view.m_base_vertices[i].m_base;
+        auto count = mesh->m_vertex_data_view.m_base_vertices[i].m_count;
         u32 j = offset;
         while (j + 2 < count + offset) {
-            v1 = transform * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 0) + base].m_pos, 1.0F);
-            v2 = transform * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 1) + base].m_pos, 1.0F);
-            v3 = transform * glm::vec4(mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 2) + base].m_pos, 1.0F);
+            v1 = transform * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 0] + base].m_pos, 1.0F);
+            v2 = transform * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 1] + base].m_pos, 1.0F);
+            v3 = transform * glm::vec4(mesh->m_vertex_data_view.m_vertices[mesh->m_vertex_data_view.m_indices[j + 2] + base].m_pos, 1.0F);
             j += 3;
 
             triangles.push_back(vec3_to_vec3(v1));

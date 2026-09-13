@@ -28,10 +28,10 @@ void DefaultTextures::init(TextureCache* cache)
         .depth = 0,
     };
     TextureInfo texture_info;
-    texture_info.size = size;
-    texture_info.origin = TextureOrigin::Void;
+    texture_info.memory_info.size = size;
+    texture_info.memory_info.origin = TextureOrigin::Void;
     texture_info.mipmaps = false;
-    texture_info.flip = false;
+    texture_info.memory_info.flip = false;
     texture_info.internal_format = GL_RGBA8;
 
     TextureSubimageInfo subimage_info;

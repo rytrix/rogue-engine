@@ -4,7 +4,9 @@
 
 #include "../app_data.hpp"
 
-#include "../physics/interface.hpp"
+#include "../utils/file.hpp"
+
+#include "../physics_jolt/interface.hpp"
 
 Entity::Entity(Scene* scene, entt::entity entity)
     : m_scene(scene)

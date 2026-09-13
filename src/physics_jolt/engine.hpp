@@ -153,7 +153,7 @@ public:
     JPH::BodyInterface* m_body_interface = nullptr;
 
 private:
-    JPH::TempAllocatorImpl m_temp_allocator { 10 * 1024 * 1024 };
+    JPH::TempAllocatorImpl m_temp_allocator { 20 * 1024 * 1024 };
 
     const uint cMaxBodies = 65536;
     const uint cNumBodyMutexes = 0;

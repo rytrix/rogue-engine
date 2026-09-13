@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../physics/engine.hpp"
+#include "../physics_jolt/engine.hpp"
 #include "../utils/deltatime.hpp"
 
 #include "renderer.hpp"
@@ -51,7 +51,7 @@ public:
     template <typename T>
     bool has_component();
 
-    bool m_physics_on = true;
+    bool m_physics_on = false;
 
     Utils::String m_name;
 

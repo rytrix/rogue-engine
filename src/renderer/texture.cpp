@@ -61,6 +61,74 @@ std::unique_ptr<TextureAllocator> texture_unit_allocator = nullptr;
 
 namespace Renderer {
 
+void TextureMemory::init(TextureMemoryInfo& info)
+{
+    if (info.origin == TextureOrigin::File) {
+        from_file(info);
+    } else if (info.origin == TextureOrigin::Memory) {
+        from_memory(info);
+    } else {
+        util_error("Cannot init without a texture origin");
+    }
+}
+
+void TextureMemory::deinit()
+{
+    if (owned) {
+        stbi_image_free(memory);
+    }
+    memory = nullptr;
+}
+
+void TextureMemory::serialize(Utils::ByteStream& stream)
+{
+    stream.append_bytes(&size, sizeof(size));
+    stream.append_bytes(&channels, sizeof(channels));
+    stream.append_bytes(&memory_size, sizeof(memory_size));
+    stream.append_bytes(memory, memory_size);
+}
+
+u8* TextureMemory::deserialize(u8* ptr)
+{
+    *this = {};
+
+    std::memcpy(&size, ptr, sizeof(TextureSize));
+    ptr += sizeof(size);
+
+    std::memcpy(&channels, ptr, sizeof(i32));
+    ptr += sizeof(channels);
+
+    std::memcpy(&memory_size, ptr, sizeof(u64));
+    ptr += sizeof(memory_size);
+
+    memory = ptr;
+    ptr += memory_size;
+
+    return ptr;
+}
+
+void TextureMemory::from_file(TextureMemoryInfo& info)
+{
+    stbi_set_flip_vertically_on_load((int)info.flip);
+
+    memory = stbi_load(info.file_path, &size.width, &size.height, &channels, info.expected_channels);
+    if (memory == nullptr) {
+        util_error(std::format("failed to load texture file: \"{}\"", info.file_path));
+    }
+    memory_size = size.width * size.height * channels;
+}
+
+void TextureMemory::from_memory(TextureMemoryInfo& info)
+{
+    stbi_set_flip_vertically_on_load((int)info.flip);
+
+    memory = stbi_load_from_memory((const stbi_uc*)info.memory, info.memory_size, &size.width, &size.height, &channels, info.expected_channels);
+    if (memory == nullptr) {
+        util_error("failed to load texture from memory");
+    }
+    memory_size = size.width * size.height * channels;
+}
+
 Texture::Texture(TextureInfo& info)
 {
     init(info);
@@ -104,18 +172,13 @@ void Texture::init(TextureInfo& info)
 
     initialized = true;
 
-    if (info.origin == TextureOrigin::File) {
-        from_file(info.file_path, info.flip, info.mipmap_levels);
-        if (mipmaps) {
-            generate_mipmap();
-        }
-    } else if (info.origin == TextureOrigin::Memory) {
-        from_memory(info.memory, info.memory_size, info.flip, info.mipmap_levels);
+    if (info.memory_info.origin == TextureOrigin::File || info.memory_info.origin == TextureOrigin::Memory || info.texture_loaded) {
+        from_texture_memory(info);
         if (mipmaps) {
             generate_mipmap();
         }
     } else {
-        texture_storage(info.size, info.internal_format, info.mipmap_levels);
+        texture_storage(info.memory_info.size, info.internal_format, info.mipmap_levels);
     }
 }
 
@@ -282,75 +345,39 @@ void Texture::texture_storage(TextureSize& size, GLenum internal_format, GLint l
     }
 }
 
-void Texture::from_file(const char* file, bool flip, GLint mipmap_levels)
+void Texture::from_texture_memory(TextureInfo& info)
 {
-    util_assert(initialized == true, "not initialized");
-
     if (m_dimensions != GL_TEXTURE_2D) {
         util_error("currently only 2D textures are supported from files");
     }
 
-    stbi_set_flip_vertically_on_load((int)flip);
-
-    TextureSize size {};
-    int nr_channels {};
-    unsigned char* data = stbi_load(file, &size.width, &size.height, &nr_channels, 0);
-    if (data == nullptr) {
-        util_error(std::format("failed to load texture {}", file));
-    }
-
-    TextureSubimageInfo info {};
-    info.type = GL_UNSIGNED_BYTE;
-    info.size = size;
-    info.pixels = data;
-
-    if (nr_channels == 3) {
-        texture_storage(size, GL_RGB8, mipmap_levels);
-        info.format = GL_RGB;
-    } else if (nr_channels == 4) {
-        texture_storage(size, GL_RGBA8, mipmap_levels);
-        info.format = GL_RGBA;
+    TextureMemory temp_texture;
+    TextureMemory& texture = temp_texture;
+    if (info.texture_loaded) {
+        texture = info.texture_memory;
     } else {
-        util_error(std::format("invalid number of channels \"{}\"", nr_channels));
+        texture.init(info.memory_info);
     }
 
-    sub_image(info);
-
-    stbi_image_free(data);
-}
-
-void Texture::from_memory(char* memory, GLint memory_size, bool flip, GLint mipmap_levels)
-{
-    util_assert(initialized == true, "not initialized");
-
-    if (m_dimensions != GL_TEXTURE_2D) {
-        util_error("currently only 2D textures are supported from files");
-    }
-
-    stbi_set_flip_vertically_on_load((int)flip);
-
-    TextureSize size {};
-    int nr_channels {};
-    unsigned char* data = stbi_load_from_memory((const stbi_uc*)memory, memory_size, &size.width, &size.height, &nr_channels, 0);
-
-    TextureSubimageInfo subimage_info;
-    subimage_info.pixels = data;
-    subimage_info.size = size;
+    TextureSubimageInfo subimage_info {};
     subimage_info.type = GL_UNSIGNED_BYTE;
+    subimage_info.size = texture.size;
+    subimage_info.pixels = texture.memory;
 
-    if (nr_channels == 3) {
-        texture_storage(subimage_info.size, GL_RGB8, mipmap_levels);
+    if (texture.channels == 3) {
+        texture_storage(texture.size, GL_RGB8, info.mipmap_levels);
         subimage_info.format = GL_RGB;
-    } else if (nr_channels == 4) {
-        texture_storage(subimage_info.size, GL_RGBA8, mipmap_levels);
+    } else if (texture.channels == 4) {
+        texture_storage(texture.size, GL_RGBA8, info.mipmap_levels);
         subimage_info.format = GL_RGBA;
     } else {
-        util_error(std::format("invalid number of channels \"{}\"", nr_channels));
+        util_error(std::format("invalid number of channels \"{}\"", texture.channels));
     }
 
     sub_image(subimage_info);
-
-    stbi_image_free(data);
+    if (!info.texture_loaded) {
+        texture.deinit();
+    }
 }
 
 } // namespace Renderer

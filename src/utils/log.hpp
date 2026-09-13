@@ -11,6 +11,7 @@ enum class LogLevel {
 };
 
 static constexpr LogLevel LOG_LEVEL = LogLevel::Info;
+static constexpr bool SHOW_TIMESTAMP = true;
 static constexpr bool SHOW_FILE = true;
 static constexpr bool SHOW_LINE = true;
 
@@ -29,6 +30,12 @@ constexpr void log(StrType msg, LogLevel level, const char* file, int line)
             local_msg += "Warn: ";
         } else if (level == LogLevel::Error) {
             local_msg += "Error: ";
+        }
+        if constexpr (SHOW_TIMESTAMP) {
+            const auto now = std::chrono::system_clock::now();
+            const auto local_time = std::chrono::current_zone()->to_local(now);
+            local_msg += std::format("{:%H:%M:%S} ", local_time);
+            // local_msg += std::format("{:%Y-%m-%d %H:%M:%S} ", local_time);
         }
         if constexpr (SHOW_FILE) {
             local_msg += file;

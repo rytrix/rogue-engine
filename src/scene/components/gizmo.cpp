@@ -7,7 +7,7 @@
 
 #include "../transform.hpp"
 
-#include "../../physics/interface.hpp"
+#include "../../physics_jolt/interface.hpp"
 
 Gizmo::Gizmo(GlobalAppData* app_data)
     : m_app_data(app_data)

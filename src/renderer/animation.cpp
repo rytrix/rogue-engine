@@ -133,6 +133,7 @@ void Animation::init(const aiScene* scene, const aiAnimation* animation, const s
 
     m_nodes_size = bone_indices.size();
     m_nodes = (NodeAnim*)m_allocator.allocate(sizeof(NodeAnim) * m_nodes_size);
+    memset(m_nodes, 0, sizeof(NodeAnim) * m_nodes_size);
 
     util_assert(m_nodes_size <= MAX_BONES,
         std::format("Exceded max bone limit of {} with {} bones",
@@ -152,7 +153,7 @@ void Animation::init(const aiScene* scene, const aiAnimation* animation, const s
             index = bone_indices.at(ai_node_anim->mNodeName.C_Str());
         } else {
             LOG_WARN(std::format("From animation \"{}\", bone \"{}\" not found",
-                m_name,
+                m_name.c_str(),
                 ai_node_anim->mNodeName.C_Str()));
             continue;
         }
@@ -181,6 +182,75 @@ void Animation::init(const aiScene* scene, const aiAnimation* animation, const s
             node_anim->m_scaling_keys[j].m_value = ai_node_anim->mScalingKeys[j].mValue;
         }
     }
+}
+
+void Animation::serialize(Utils::ByteStream& bytestream) const
+{
+    bytestream.append_bytes(&m_nodes_size, sizeof(m_nodes_size));
+    bytestream.append_bytes(m_nodes, m_nodes_size * sizeof(NodeAnim));
+    bytestream.append_bytes(&m_global_inverse_transform, sizeof(m_global_inverse_transform));
+    bytestream.append_bytes(&m_total_animation_time, sizeof(m_total_animation_time));
+    bytestream.append_bytes(&m_ticks_per_second, sizeof(m_ticks_per_second));
+
+    for (usize i = 0; i < m_nodes_size; i++) {
+        NodeAnim* node = &m_nodes[i];
+
+        bytestream.append_bytes(&node->m_scaling_size, sizeof(node->m_scaling_size));
+        bytestream.append_bytes(node->m_scaling_keys, node->m_scaling_size * sizeof(KeyFrame<aiVector3D>));
+
+        bytestream.append_bytes(&node->m_rotation_size, sizeof(node->m_rotation_size));
+        bytestream.append_bytes(node->m_rotation_keys, node->m_rotation_size * sizeof(KeyFrame<aiQuaternion>));
+
+        bytestream.append_bytes(&node->m_position_size, sizeof(node->m_position_size));
+        bytestream.append_bytes(node->m_position_keys, node->m_position_size * sizeof(KeyFrame<aiVector3D>));
+    }
+}
+
+u8* Animation::deserialize(u8* start_ptr)
+{
+    u8* ptr = start_ptr;
+    std::memcpy(&m_nodes_size, ptr, sizeof(m_nodes_size));
+    ptr += sizeof(m_nodes_size);
+
+    // TODO: alignment question
+    m_nodes = (NodeAnim*)ptr;
+    ptr += m_nodes_size * sizeof(*m_nodes);
+
+    std::memcpy(&m_global_inverse_transform, ptr, sizeof(glm::mat4));
+    ptr += sizeof(m_global_inverse_transform);
+
+    std::memcpy(&m_total_animation_time, ptr, sizeof(m_total_animation_time));
+    ptr += sizeof(m_total_animation_time);
+
+    std::memcpy(&m_ticks_per_second, ptr, sizeof(m_ticks_per_second));
+    ptr += sizeof(m_ticks_per_second);
+
+    for (usize i = 0; i < m_nodes_size; i++) {
+        NodeAnim* node = &m_nodes[i];
+
+        // Scaling
+        std::memcpy(&node->m_scaling_size, ptr, sizeof(node->m_scaling_size));
+        ptr += sizeof(node->m_scaling_size);
+
+        node->m_scaling_keys = (KeyFrame<aiVector3D>*)ptr;
+        ptr += node->m_scaling_size * sizeof(*node->m_scaling_keys);
+
+        // Rotation
+        std::memcpy(&node->m_rotation_size, ptr, sizeof(node->m_rotation_size));
+        ptr += sizeof(node->m_rotation_size);
+
+        node->m_rotation_keys = (KeyFrame<aiQuaternion>*)ptr;
+        ptr += node->m_rotation_size * sizeof(*node->m_rotation_keys);
+
+        // Position
+        std::memcpy(&node->m_position_size, ptr, sizeof(node->m_position_size));
+        ptr += sizeof(node->m_position_size);
+
+        node->m_position_keys = (KeyFrame<aiVector3D>*)ptr;
+        ptr += node->m_position_size * sizeof(*node->m_position_keys);
+    }
+
+    return ptr;
 }
 
 void Animation::evaluate_scene(const aiScene* scene, const aiNode* node, const std::unordered_map<Utils::String, u32>& bone_indices)
@@ -290,11 +360,11 @@ void Animation::update_transforms_blended(PerAnimationData* first, PerAnimationD
             auto node_transform_keyframe = node->keyframe_to_keyframe_result(animation_time, first->m_cache[i]);
             auto node_transform_keyframe_2 = node_2->keyframe_to_keyframe_result(animation_time_2, second->m_cache[i]);
             node_transform = node_transform_keyframe.blend_to_mat4(node_transform_keyframe_2, factor);
-        // For some reason it looks better if I don't have this so I'm just gonna leave it off for now
-        // } else if (node->m_has_animation) {
-        //     node_transform = node->keyframe_to_mat4(animation_time, first->m_cache[i]);
-        // } else if (node_2->m_has_animation) {
-        //     node_transform = node_2->keyframe_to_mat4(animation_time_2, second->m_cache[i]);
+            // For some reason it looks better if I don't have this so I'm just gonna leave it off for now
+            // } else if (node->m_has_animation) {
+            //     node_transform = node->keyframe_to_mat4(animation_time, first->m_cache[i]);
+            // } else if (node_2->m_has_animation) {
+            //     node_transform = node_2->keyframe_to_mat4(animation_time_2, second->m_cache[i]);
         } else {
             node_transform = node->m_node_transform;
         }

@@ -2,8 +2,8 @@
 
 #include "../../mesh.hpp"
 
-#include "../shader_preprocessor.hpp"
 #include "../../utils/file.hpp"
+#include "../shader_preprocessor.hpp"
 
 #include <algorithm>
 
@@ -11,7 +11,12 @@ namespace {
 
 constexpr void get_directional_cascade_shader(ShaderInfoData<2>& out, const std::string& vert_defines, const std::string& frag_defines)
 {
-    std::vector<char> shadow_file = read_file<char>("res/shaders/forward_pass/shadow_pass_directional_cascades.glsl");
+    const char* file_name = "res/shaders/forward_pass/shadow_pass_directional_cascades.glsl";
+    std::vector<char> shadow_file;
+    auto result = Utils::read_file(shadow_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view shadow_file_view = { shadow_file.data(), shadow_file.size() };
 
     // Vertex Shader
@@ -29,7 +34,12 @@ constexpr void get_directional_cascade_shader(ShaderInfoData<2>& out, const std:
 
 constexpr void get_directional_cascade_shader_geometry(ShaderInfoData<3>& out, const std::string& vert_defines, const std::string& frag_defines, u32 cascade_count)
 {
-    std::vector<char> shadow_file = read_file<char>("res/shaders/forward_pass/shadow_pass_directional_cascades_geometry.glsl");
+    const char* file_name = "res/shaders/forward_pass/shadow_pass_directional_cascades_geometry.glsl";
+    std::vector<char> shadow_file;
+    auto result = Utils::read_file(shadow_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view shadow_file_view = { shadow_file.data(), shadow_file.size() };
 
     // Vertex Shader

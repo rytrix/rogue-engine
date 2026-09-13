@@ -5,7 +5,7 @@
 #include "utils/file.hpp"
 #include "utils/math/ray.hpp"
 
-#include "physics/interface.hpp"
+#include "renderer/mesh_compiler.hpp"
 
 App::App()
 {
@@ -32,6 +32,29 @@ App::App()
 
     m_app_data.m_gizmo.init(&m_app_data);
     m_app_data.m_entity_selector.init(m_scene, &m_app_data);
+
+    // Utils::ByteStream bytes;
+    // Renderer::compile_mesh(bytes, "res/models/Sponza/glTF/Sponza.gltf", &m_app_data);
+    // auto result = Utils::write_file("test_file.rbin", { (char*)bytes.data(), bytes.size() });
+
+    // std::vector<char> file;
+    // bool result = Utils::read_file(file, "test_file.rbin");
+    // if (result) {
+    //     Renderer::Mesh mesh;
+    //     Renderer::load_compiled_mesh(mesh, { (u8*)file.data(), file.size() }, &m_app_data);
+    // }
+    // util_error("Testing this bin");
+
+    Renderer::SkyboxInfo skybox_info {};
+    skybox_info.file = "res/skyboxes/Cubemap_Sky_14-512x512.png";
+    m_scene->add_component<Renderer::Skybox>(skybox_info);
+
+    std::vector<char> json_buffer;
+    auto json_result = Utils::read_file(json_buffer, "default_scene.json");
+    if (json_result) {
+        nlohmann::json json_scene = nlohmann::json::parse(json_buffer.data());
+        m_scene->from_json(json_scene);
+    }
 
     m_app_data.m_window.process_input_callback([&](SDL_Event& event) {
         if (event.type == SDL_EVENT_WINDOW_RESIZED) {
@@ -65,14 +88,6 @@ App::App()
         m_app_data.m_gizmo.on_event(engine_event);
         m_app_data.m_entity_selector.on_event(engine_event);
     });
-
-    Renderer::SkyboxInfo skybox_info {};
-    skybox_info.file = "res/skyboxes/Cubemap_Sky_14-512x512.png";
-    m_scene->add_component<Renderer::Skybox>(skybox_info);
-
-    auto text_scene = read_file<char>("default_scene.json");
-    nlohmann::json json_scene = nlohmann::json::parse(text_scene.data());
-    m_scene->from_json(json_scene);
 
     m_scene->update();
 }
@@ -143,12 +158,15 @@ void App::run()
         m_scene->draw();
         m_app_data.m_entity_selector.draw();
 
+        if (m_draw_bodies) {
+            m_scene->m_physics_system->draw_bodies();
+        }
+
         m_app_data.m_line_renderer.draw(m_app_data.m_camera);
+
         m_app_data.m_text_renderer.draw_text(10,
             m_app_data.m_window.get_height() - m_app_data.m_text_renderer.get_max_pixel_height(),
-            std::format("Framerate {}", m_fps).c_str(), glm::vec3 { 1.0F });
-
-        m_scene->m_physics_system->draw_bodies();
+            Utils::format("Framerate {}", m_fps).c_str(), glm::vec3 { 1.0F });
 
         const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 20, main_viewport->WorkPos.y + 20), ImGuiCond_FirstUseEver);
@@ -171,6 +189,8 @@ void App::run()
         }
 
         ImGui::Checkbox("Toggle physics", &m_scene->m_physics_on);
+
+        ImGui::Checkbox("Toggle draw physics bodies", &m_draw_bodies);
 
         if (ImGui::CollapsingHeader(m_scene->m_name.c_str())) {
             m_scene->draw_debug_imgui();

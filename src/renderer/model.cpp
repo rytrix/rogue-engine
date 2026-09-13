@@ -1,11 +1,15 @@
 #include "model.hpp"
 
-#include "assimp/Importer.hpp"
+#include "mesh_compiler.hpp"
+
+#include <algorithm>
+#include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
 #include <filesystem>
 
+#include "../utils/file.hpp"
 #include "../utils/helpers.hpp"
 
 #include "../app_data.hpp"
@@ -17,7 +21,7 @@ namespace Renderer {
 class ModelLoader : public NoCopyNoMove {
 public:
     ModelLoader() = default;
-    ModelLoader(Mesh& mesh, const char* path, GlobalAppData* app_data);
+    ModelLoader(Mesh& mesh, const char* path, GlobalAppData* app_data, MeshLoaderFlags flags);
     ~ModelLoader();
 
     void init(const char* path, GlobalAppData* app_data);
@@ -25,30 +29,37 @@ public:
     ModelResult m_error;
 
 private:
-    bool initialized = false;
-
     GlobalAppData* m_app_data = nullptr;
 
     std::string m_directory;
 
     Mesh& m_mesh;
 
+    MeshLoaderFlags m_flags;
+
+    std::unordered_map<Utils::String, u32> m_texture_indices;
+
     void setup_mesh(const aiScene* scene);
     void setup_animations(const aiScene* scene);
 
     void process_node(aiNode* node, const aiScene* scene);
     void process_mesh(aiMesh* mesh, const aiScene* scene);
+
+    u32 load_material_texture_memory(const aiMaterial* mat, const aiTextureType type, const aiScene* scene);
     Handle load_material_texture(const aiMaterial* mat, const aiTextureType type, const aiScene* scene);
+
+    static std::string sanitize_path_to_filename(std::string path_str);
 };
 
-ModelResult load_mesh(Mesh& mesh, const char* path, GlobalAppData* app_data)
+ModelResult load_mesh(Mesh& mesh, const char* path, GlobalAppData* app_data, MeshLoaderFlags flags)
 {
-    ModelLoader loader(mesh, path, app_data);
+    ModelLoader loader(mesh, path, app_data, flags);
     return loader.m_error;
 }
 
-ModelLoader::ModelLoader(Mesh& mesh, const char* file_path, GlobalAppData* app_data)
+ModelLoader::ModelLoader(Mesh& mesh, const char* file_path, GlobalAppData* app_data, MeshLoaderFlags flags)
     : m_mesh(mesh)
+    , m_flags(flags)
 {
     init(file_path, app_data);
     m_mesh.m_result = m_error;
@@ -56,8 +67,6 @@ ModelLoader::ModelLoader(Mesh& mesh, const char* file_path, GlobalAppData* app_d
 
 void ModelLoader::init(const char* file_path, GlobalAppData* app_data)
 {
-    util_assert(initialized == false, "already initialized");
-
     m_directory = file_path;
     m_app_data = app_data;
 
@@ -67,9 +76,18 @@ void ModelLoader::init(const char* file_path, GlobalAppData* app_data)
         return;
     }
 
+    auto compiled_path = Utils::format(R"(res/cmodels/'{}'.rbin)", sanitize_path_to_filename(file_path));
+    if (Utils::is_file_newer(compiled_path.c_str(), file_path)) {
+        // load the compiled mesh instead
+        bool result = Utils::read_file(m_mesh.m_serialized_bytes, compiled_path.c_str());
+        if (result) {
+            Renderer::load_compiled_mesh(m_mesh, { (u8*)m_mesh.m_serialized_bytes.data(), m_mesh.m_serialized_bytes.size() }, app_data);
+            return;
+        }
+    }
+
     m_mesh.m_path = file_path;
 
-    // util_assert(std::filesystem::exists(file_path), std::format("Model \"{}\" is an invalid path", file_path));
     m_directory = m_directory.substr(0, m_directory.find_last_of('/'));
 
     Assimp::Importer importer;
@@ -89,10 +107,20 @@ void ModelLoader::init(const char* file_path, GlobalAppData* app_data)
         return;
     }
 
+    LOG_INFO(std::format("Loading Model from path {}", m_mesh.m_path.c_str()));
+
     setup_mesh(scene);
     setup_animations(scene);
 
-    initialized = true;
+    if (!Utils::is_file_newer(compiled_path.c_str(), file_path)) {
+        // compile the mesh (it's already loaed)
+        Utils::ByteStream bytes;
+        Renderer::compile_mesh(bytes, m_mesh);
+        bool result = Utils::write_file(compiled_path.c_str(), { (char*)bytes.data(), bytes.size() });
+        util_assert(result, std::format("failed to write to \"{}\"", compiled_path.c_str()));
+        m_mesh.drop_texture_memory();
+    }
+
 }
 
 void ModelLoader::setup_mesh(const aiScene* scene)
@@ -102,12 +130,24 @@ void ModelLoader::setup_mesh(const aiScene* scene)
     process_node(scene->mRootNode, scene);
 
     usize offset = 0;
-    for (usize i = 0; i < m_mesh.m_base_vertices.size(); i++) {
-        m_mesh.m_base_vertices.at(i).m_offset = offset;
-        offset += m_mesh.m_base_vertices.at(i).m_count;
+    for (usize i = 0; i < m_mesh.m_vertex_data.m_base_vertices.size(); i++) {
+        m_mesh.m_vertex_data.m_base_vertices.at(i).m_offset = offset;
+        offset += m_mesh.m_vertex_data.m_base_vertices.at(i).m_count;
     }
 
-    m_mesh.setup_mesh();
+    m_mesh.m_vertex_data_view.m_base_vertices = m_mesh.m_vertex_data.m_base_vertices;
+    m_mesh.m_vertex_data_view.m_vertices = m_mesh.m_vertex_data.m_vertices;
+    m_mesh.m_vertex_data_view.m_indices = m_mesh.m_vertex_data.m_indices;
+    m_mesh.m_vertex_data_view.m_bones = m_mesh.m_vertex_data.m_bones;
+
+
+    if (has_flag(m_flags, MeshLoaderFlags::StoreTextures) && has_flag(m_flags, MeshLoaderFlags::UploadTexturesToGPU)) {
+        m_mesh.upload_texture_memory_to_gpu();
+    }
+
+    if (!has_flag(m_flags, MeshLoaderFlags::DontInitializeOpenGL)) {
+        m_mesh.setup_mesh();
+    }
 }
 
 void ModelLoader::setup_animations(const aiScene* scene)
@@ -129,14 +169,13 @@ void ModelLoader::setup_animations(const aiScene* scene)
 
 ModelLoader::~ModelLoader()
 {
-    initialized = false;
 }
 
 void ModelLoader::process_node(aiNode* node, const aiScene* scene)
 {
     for (u32 i = 0; i < node->mNumMeshes; i++) {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-        LOG_INFO(std::format("Loading mesh: {} from scene", node->mMeshes[i]));
+        LOG_INFO(std::format("Loading mesh: {}", node->mMeshes[i]));
         process_mesh(mesh, scene);
     }
 
@@ -182,28 +221,39 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
     if (scene->HasMaterials()) {
         aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 
-        auto diffuse_map = load_material_texture(material, aiTextureType_DIFFUSE, scene);
-        if (diffuse_map.generation.valid == 0) {
-            LOG_WARN("Using default albedo texture map");
-            m_mesh.m_diffuse_textures.push_back(m_app_data->m_default_textures.get_albedo());
-        } else {
-            m_mesh.m_diffuse_textures.push_back(diffuse_map);
-        }
+        if (has_flag(m_flags, MeshLoaderFlags::StoreTextures)) {
+            auto diffuse_map = load_material_texture_memory(material, aiTextureType_DIFFUSE, scene);
+            m_mesh.m_texture_data.m_diffuse_textures_memory.push_back(diffuse_map);
 
-        auto metallic_roughness_map = load_material_texture(material, aiTextureType_GLTF_METALLIC_ROUGHNESS, scene);
-        if (metallic_roughness_map.generation.valid == 0) {
-            LOG_WARN("Using default metallic texture map");
-            m_mesh.m_metallic_roughness_textures.push_back(m_app_data->m_default_textures.get_metallic());
-        } else {
-            m_mesh.m_metallic_roughness_textures.push_back(metallic_roughness_map);
-        }
+            auto metallic_map = load_material_texture_memory(material, aiTextureType_GLTF_METALLIC_ROUGHNESS, scene);
+            m_mesh.m_texture_data.m_metallic_roughness_textures_memory.push_back(metallic_map);
 
-        auto normal_map = load_material_texture(material, aiTextureType_NORMALS, scene);
-        if (normal_map.generation.valid == 0) {
-            LOG_WARN("Using default normal texture map");
-            m_mesh.m_normal_textures.push_back(m_app_data->m_default_textures.get_normal());
-        } else {
-            m_mesh.m_normal_textures.push_back(normal_map);
+            auto normal_map = load_material_texture_memory(material, aiTextureType_NORMALS, scene);
+            m_mesh.m_texture_data.m_normal_textures_memory.push_back(normal_map);
+        } else if (has_flag(m_flags, MeshLoaderFlags::UploadTexturesToGPU)) {
+            auto diffuse_map = load_material_texture(material, aiTextureType_DIFFUSE, scene);
+            if (diffuse_map.generation.valid == 0) {
+                LOG_WARN("Using default albedo texture map");
+                m_mesh.m_texture_data.m_diffuse_textures.push_back(m_app_data->m_default_textures.get_albedo());
+            } else {
+                m_mesh.m_texture_data.m_diffuse_textures.push_back(diffuse_map);
+            }
+
+            auto metallic_roughness_map = load_material_texture(material, aiTextureType_GLTF_METALLIC_ROUGHNESS, scene);
+            if (metallic_roughness_map.generation.valid == 0) {
+                LOG_WARN("Using default metallic texture map");
+                m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(m_app_data->m_default_textures.get_metallic());
+            } else {
+                m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(metallic_roughness_map);
+            }
+
+            auto normal_map = load_material_texture(material, aiTextureType_NORMALS, scene);
+            if (normal_map.generation.valid == 0) {
+                LOG_WARN("Using default normal texture map");
+                m_mesh.m_texture_data.m_normal_textures.push_back(m_app_data->m_default_textures.get_normal());
+            } else {
+                m_mesh.m_texture_data.m_normal_textures.push_back(normal_map);
+            }
         }
     }
 
@@ -254,9 +304,57 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
 
     count = static_cast<GLsizei>(m_mesh.m_vertex_data.m_indices.size()) - count;
 
-    m_mesh.m_base_vertices.emplace_back(
+    m_mesh.m_vertex_data.m_base_vertices.emplace_back(
         count,
         base_vertex);
+}
+
+u32 ModelLoader::load_material_texture_memory(const aiMaterial* mat, const aiTextureType type, const aiScene* scene)
+{
+    if (mat->GetTextureCount(type) > 0) {
+        aiString str;
+        mat->GetTexture(type, 0, &str);
+        const aiTexture* embedded_texture = scene->GetEmbeddedTexture(str.C_Str());
+
+        TextureMemoryInfo memory_info;
+        memory_info.flip = false;
+        if (embedded_texture == nullptr) {
+            Utils::String texture_path = Utils::format("{}/{}", m_directory.c_str(), str.C_Str());
+            LOG_INFO(std::format("Loading {} type {}", texture_path.view(), aiTextureTypeToString(type)));
+
+            if (m_texture_indices.contains(texture_path)) {
+                return m_texture_indices[texture_path];
+            } else {
+                memory_info.origin = TextureOrigin::File;
+                memory_info.file_path = texture_path.c_str();
+
+                auto& memory = m_mesh.m_texture_data.m_texture_memory.emplace_back();
+                memory.init(memory_info);
+                u32 index = m_mesh.m_texture_data.m_texture_memory.size() - 1;
+                m_texture_indices[texture_path] = index;
+                return index;
+            }
+        } else {
+            Utils::String texture_path(str.C_Str());
+            LOG_INFO(std::format("Loading {} type {}", texture_path.view(), aiTextureTypeToString(type)));
+
+            if (m_texture_indices.contains(texture_path)) {
+                return m_texture_indices[texture_path];
+            } else {
+                memory_info.origin = TextureOrigin::Memory;
+                memory_info.memory = (char*)embedded_texture->pcData;
+                memory_info.memory_size = embedded_texture->mWidth;
+
+                auto& memory = m_mesh.m_texture_data.m_texture_memory.emplace_back();
+                memory.init(memory_info);
+                u32 index = m_mesh.m_texture_data.m_texture_memory.size() - 1;
+                m_texture_indices[texture_path] = index;
+                return index;
+            }
+        }
+    }
+
+    return UINT32_MAX;
 }
 
 Handle ModelLoader::load_material_texture(const aiMaterial* mat, const aiTextureType type, const aiScene* scene)
@@ -267,20 +365,19 @@ Handle ModelLoader::load_material_texture(const aiMaterial* mat, const aiTexture
 
         const aiTexture* embedded_texture = scene->GetEmbeddedTexture(str.C_Str());
 
-        TextureInfo texture_info;
+        TextureInfo texture_info {};
         texture_info.min_filter = GL_LINEAR_MIPMAP_LINEAR;
         texture_info.mag_filter = GL_LINEAR;
         texture_info.mipmaps = true;
         texture_info.mipmap_levels = 0;
-        texture_info.flip = false;
+        texture_info.memory_info.flip = false;
 
         auto* texture_cache = &m_app_data->m_texture_cache;
         if (embedded_texture == nullptr) {
-            Utils::String texture_path;
-            texture_path.format("{}/{}", m_directory.c_str(), str.C_Str());
+            Utils::String texture_path = Utils::format("{}/{}", m_directory.c_str(), str.C_Str());
 
-            texture_info.origin = TextureOrigin::File;
-            texture_info.file_path = texture_path.c_str();
+            texture_info.memory_info.origin = TextureOrigin::File;
+            texture_info.memory_info.file_path = texture_path.c_str();
 
             LOG_INFO(std::format("Loading {} type {}", texture_path.view(), aiTextureTypeToString(type)));
 
@@ -300,9 +397,9 @@ Handle ModelLoader::load_material_texture(const aiMaterial* mat, const aiTexture
             if (texture_cache->contains(texture_path)) {
                 return texture_cache->get(texture_path);
             } else {
-                texture_info.origin = TextureOrigin::Memory;
-                texture_info.memory = (char*)embedded_texture->pcData;
-                texture_info.memory_size = embedded_texture->mWidth;
+                texture_info.memory_info.origin = TextureOrigin::Memory;
+                texture_info.memory_info.memory = (char*)embedded_texture->pcData;
+                texture_info.memory_info.memory_size = embedded_texture->mWidth;
 
                 auto handle = texture_cache->get_or_create(texture_path, texture_info);
                 Texture* texture = texture_cache->get(handle);
@@ -314,6 +411,13 @@ Handle ModelLoader::load_material_texture(const aiMaterial* mat, const aiTexture
     } else {
         return { .generation = { .valid = 0, .id = 0 }, .index = 0 };
     }
+}
+
+std::string ModelLoader::sanitize_path_to_filename(std::string path_str)
+{
+    std::ranges::replace(path_str, '/', '-');
+    std::ranges::replace(path_str, '\\', '-');
+    return path_str;
 }
 
 } // namespace Renderer

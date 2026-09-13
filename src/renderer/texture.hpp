@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../utils/bytestream.hpp"
+
 namespace Renderer {
 
 struct TextureSize {
@@ -14,14 +16,42 @@ enum struct TextureOrigin {
     Memory,
 };
 
-struct TextureInfo {
+struct TextureMemoryInfo {
     TextureOrigin origin = TextureOrigin::Void;
     union {
-        const char* file_path = nullptr;
-        TextureSize size;
+        TextureSize size {};
+        const char* file_path;
     };
     char* memory = nullptr;
     GLint memory_size = 0;
+    i32 expected_channels = 0;
+    bool flip = true;
+};
+
+struct TextureMemory {
+    u8* memory = nullptr;
+    u64 memory_size = 0;
+    TextureSize size {};
+    i32 channels = 0;
+    bool owned = true;
+
+    void init(TextureMemoryInfo& info);
+    void deinit();
+
+    void serialize(Utils::ByteStream& stream);
+    [[nodiscard]] u8* deserialize(u8* ptr);
+
+private:
+    void from_file(TextureMemoryInfo& info);
+    void from_memory(TextureMemoryInfo& info);
+};
+
+struct TextureInfo {
+    bool texture_loaded = false;
+    union {
+        TextureMemoryInfo memory_info {};
+        TextureMemory texture_memory;
+    };
     GLenum dimensions = GL_TEXTURE_2D;
     GLint min_filter = GL_NEAREST;
     GLint mag_filter = GL_NEAREST;
@@ -32,7 +62,6 @@ struct TextureInfo {
     bool mipmaps = false;
     GLint mipmap_levels = 1;
     GLenum internal_format = GL_RGBA8;
-    bool flip = true;
 };
 
 struct TextureSubimageInfo {
@@ -56,13 +85,13 @@ class Texture : public NoCopyNoMove {
 public:
     Texture() = default;
     explicit Texture(TextureInfo& info);
+    void init(TextureInfo& info);
     ~Texture();
 
     static GLuint get_texture_unit();
     static void drop_texture_units(u32 count);
     static void reset_texture_units();
 
-    void init(TextureInfo& info);
     void sub_image(TextureSubimageInfo& info);
     void bind(GLuint texture_unit);
 
@@ -86,8 +115,7 @@ private:
 
     void generate_mipmap();
     void texture_storage(TextureSize& size, GLenum internal_format, GLint levels);
-    void from_file(const char* file, bool flip, GLint mipmap_levels);
-    void from_memory(char* memory, GLint memory_size, bool flip, GLint mipmap_levels);
+    void from_texture_memory(TextureInfo& info);
 };
 
 } // namespace Renderer

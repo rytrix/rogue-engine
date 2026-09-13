@@ -16,11 +16,12 @@ add_executable(${PROJECT_NAME}
     src/scene/components/gizmo.cpp
     src/scene/components/entity_selector.cpp
 
-    src/physics/engine.cpp
-    src/physics/interface.cpp
-    src/physics/debugrenderer.cpp
+    src/physics_jolt/engine.cpp
+    src/physics_jolt/interface.cpp
+    src/physics_jolt/debugrenderer.cpp
 
     src/utils/deltatime.cpp
+    src/utils/bytestream.cpp
     src/utils/math/ray.cpp
     src/utils/math/aabb.cpp
 
@@ -39,6 +40,7 @@ add_executable(${PROJECT_NAME}
     src/renderer/framebuffer.cpp
     src/renderer/renderbuffer.cpp
     src/renderer/mesh.cpp
+    src/renderer/mesh_compiler.cpp
     src/renderer/model.cpp
     src/renderer/gbuffer.cpp
     src/renderer/shadowmap.cpp
@@ -57,6 +59,9 @@ add_executable(${PROJECT_NAME}
     src/renderer/light/pbr/directional.cpp
     src/renderer/light/pbr/spot.cpp
 )
+
+target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address,undefined)
 
 target_precompile_headers(${PROJECT_NAME} PUBLIC src/pch.hpp)
 target_compile_options(${PROJECT_NAME} PRIVATE -fno-rtti)
@@ -79,6 +84,8 @@ set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "Stop warnings as errors for JoltPhysics"
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libs for JoltPhysics" FORCE)
 set(DOUBLE_PRECISION OFF CACHE BOOL "Double precision floats for JoltPhysics" FORCE)
 add_subdirectory(vendor/JoltPhysics/Build)
+
+add_subdirectory(vendor/box3d)
 
 add_subdirectory(vendor/freetype)
 
@@ -112,6 +119,7 @@ target_link_libraries(${PROJECT_NAME}
     Jolt::Jolt
     imgui
     freetype
+    box3d::box3d
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -126,4 +134,5 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC vendor/JoltPhysics
     PUBLIC vendor/entt/single_include
     PUBLIC vendor/freetype/include
+    PUBLIC vendor/box3d/include
 )

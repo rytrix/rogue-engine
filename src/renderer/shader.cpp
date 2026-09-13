@@ -44,7 +44,13 @@ namespace {
 
         std::vector<char> shader_text;
         if (is_file) {
-            shader_text = read_file<char>(shader);
+
+            auto result = Utils::read_file(shader_text, shader);
+            if (!result) {
+                LOG_ERROR(std::format("Could not find file \"{}\"", shader));
+                m_errors = true;
+                return;
+            }
             const char* data_text = shader_text.data();
             glShaderSource(m_id, 1, &data_text, nullptr);
         } else {

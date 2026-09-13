@@ -2,12 +2,13 @@
 
 #include <cstddef>
 
-#include "shader_preprocessor.hpp"
 #include "../utils/file.hpp"
+#include "shader_preprocessor.hpp"
 
 namespace Renderer {
 
 Skybox::Skybox(SkyboxInfo& info)
+    : m_name(info.file)
 {
     init(info);
 }
@@ -19,7 +20,7 @@ void Skybox::init(SkyboxInfo& info)
 
     TextureInfo texture_info;
     texture_info.dimensions = GL_TEXTURE_CUBE_MAP;
-    texture_info.size = { .width = 512, .height = 512, .depth = 0 };
+    texture_info.memory_info.size = { .width = 512, .height = 512, .depth = 0 };
     texture_info.internal_format = GL_RGB8;
     texture_info.wrap_s = GL_CLAMP_TO_BORDER;
     texture_info.wrap_t = GL_CLAMP_TO_BORDER;
@@ -33,18 +34,18 @@ void Skybox::init(SkyboxInfo& info)
     subimage_info.level = 0;
     subimage_info.type = GL_UNSIGNED_BYTE;
 
-    TextureSize size;
-    int nr_channels;
-    stbi_set_flip_vertically_on_load(0);
-    const char* file = info.file;
-    unsigned char* data = stbi_load(file, &size.width, &size.height, &nr_channels, 3);
-    if (data == nullptr) {
-        util_error(std::format("failed to load texture {}", file));
-    }
-    util_assert(nr_channels == 3, "expected 3 channels");
+    TextureMemoryInfo texture_memory_info;
+    texture_memory_info.origin = TextureOrigin::File;
+    texture_memory_info.file_path = info.file;
+    texture_memory_info.expected_channels = 3;
+    texture_memory_info.flip = false;
 
-    const u32 atlas_width = size.width;
-    const u32 face_size = size.width / 4;
+    TextureMemory texture_memory;
+    texture_memory.init(texture_memory_info);
+    util_assert(texture_memory.channels == 3, "expected 3 channels");
+
+    const u32 atlas_width = texture_memory.size.width;
+    const u32 face_size = texture_memory.size.width / 4;
     LOG_INFO(std::format("Skybox atlas width: \"{}\", face size \"{}\"", atlas_width, face_size));
 
     // GL_TEXTURE_CUBE_MAP_POSITIVE_X (Right)	0
@@ -70,9 +71,9 @@ void Skybox::init(SkyboxInfo& info)
 
         for (u32 j = 0; j < face_size; j++) {
             int current_atlas_y = face_start_y + j;
-            unsigned char* dest = image_sub_data + (j * face_size * nr_channels);
-            unsigned char* src = data + (face_start_x + (current_atlas_y * atlas_width)) * nr_channels;
-            memcpy(dest, src, face_size * nr_channels);
+            unsigned char* dest = image_sub_data + (j * face_size * texture_memory.channels);
+            unsigned char* src = texture_memory.memory + (face_start_x + (current_atlas_y * atlas_width)) * texture_memory.channels;
+            memcpy(dest, src, face_size * texture_memory.channels);
         }
 
         subimage_info.offsets = { .width = 0, .height = 0, .depth = (GLint)i }; // depth is cube map face
@@ -82,8 +83,7 @@ void Skybox::init(SkyboxInfo& info)
     }
 
     free(image_sub_data);
-
-    stbi_image_free(data);
+    texture_memory.deinit();
 
     setup_shader();
     initialized = true;
@@ -122,7 +122,12 @@ void Skybox::setup_shader()
 {
     ShaderInfoData<2> out;
 
-    std::vector<char> text_shader_file = read_file<char>("res/shaders/skybox/skybox.glsl");
+    const char* file_name = "res/shaders/skybox/skybox.glsl";
+    std::vector<char> text_shader_file;
+    auto result = Utils::read_file(text_shader_file, file_name);
+    if (!result) {
+        util_error(std::format("Could not find file \"{}\"", file_name));
+    }
     std::string_view text_shader_file_view = { text_shader_file.data(), text_shader_file.size() };
 
     // Vertex Shader

@@ -25,6 +25,8 @@ public:
 
     void draw(const Camera& camera);
 
+    const char* m_name = nullptr;
+
 private:
     bool initialized = false;
 
