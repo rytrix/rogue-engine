@@ -20,6 +20,8 @@ add_executable(${PROJECT_NAME}
     src/physics_jolt/interface.cpp
     src/physics_jolt/debugrenderer.cpp
 
+    src/physics_box3d/engine.cpp
+
     src/utils/deltatime.cpp
     src/utils/bytestream.cpp
     src/utils/math/ray.cpp
