@@ -166,6 +166,8 @@ private:
 
     JPH::PhysicsSystem m_physics_system;
 
+    float m_dt_accumulator = 0;
+
     DebugRenderer m_debug_renderer;
     Scene* m_scene;
 };

@@ -49,15 +49,24 @@ System::~System()
 
 void System::update(float delta_time)
 {
-    // Cap the input delta time to prevent problems during hitches
-    const float max_physics_delta = 0.1f;
-    const float clamped_delta = std::min(delta_time, max_physics_delta);
+    // // Cap the input delta time to prevent problems during hitches
+    // const float max_physics_delta = 0.1f;
+    // const float clamped_delta = std::min(delta_time, max_physics_delta);
+    //
+    // // If clamped_delta is 0.1s, this yields ceil(0.1 / 0.01666) = 6 steps
+    // const float target_step_size = 1.0f / 60.0f;
+    // const int collision_steps = std::max(static_cast<int>(std::ceil(clamped_delta / target_step_size)), 1);
 
-    // If clamped_delta is 0.1s, this yields ceil(0.1 / 0.01666) = 6 steps
-    const float target_step_size = 1.0f / 60.0f;
-    const int collision_steps = std::max(static_cast<int>(std::ceil(clamped_delta / target_step_size)), 1);
+    // m_physics_system.Update(clamped_delta, collision_steps, &m_temp_allocator, s_job_system);
 
-    m_physics_system.Update(clamped_delta, collision_steps, &m_temp_allocator, s_job_system);
+    const float dt_step = 1.0F / 60.0F;
+
+    m_dt_accumulator += delta_time;
+
+    while (m_dt_accumulator >= dt_step) {
+        m_physics_system.Update(dt_step, 1, &m_temp_allocator, s_job_system);
+        m_dt_accumulator -= dt_step;
+    }
 }
 
 void System::create_mesh_triangle_list(JPH::TriangleList& triangles, const std::deque<Renderer::Mesh>* meshes)
