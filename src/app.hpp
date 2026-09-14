@@ -15,6 +15,7 @@ public:
 
 private:
     void fps_counter();
+    void spawn_300_cubes();
 
     bool m_vsync = true;
     bool m_draw_bodies = false;

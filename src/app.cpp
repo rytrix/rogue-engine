@@ -105,6 +105,24 @@ void App::fps_counter()
     }
 }
 
+void App::spawn_300_cubes()
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution dist_x(-15.0f, 15.0f);
+    std::uniform_real_distribution dist_y(1.0f, 20.0f);
+    std::uniform_real_distribution dist_z(-15.0f, 15.0f);
+
+    for (u32 i = 0; i < 300; i++) {
+        Entity entity = m_scene->create_entity();
+        Entity::add_mesh(entity, "res/models/physics_cube/cube.obj");
+        Transform transform;
+        transform.set_position({ dist_x(gen), dist_y(gen), dist_z(gen) });
+        Entity::add_transform(entity, transform);
+        Entity::add_convex_hull_body(entity);
+    }
+}
+
 void App::run()
 {
     auto scancodes = [&]() {
@@ -177,6 +195,10 @@ void App::run()
         ImGui::Checkbox("Toggle physics", &m_scene->m_physics_on);
 
         ImGui::Checkbox("Toggle draw physics bodies", &m_draw_bodies);
+
+        if (ImGui::Button("Spawn 300 cubes")) {
+            spawn_300_cubes();
+        }
 
         if (ImGui::CollapsingHeader(m_scene->m_name.c_str())) {
             m_scene->draw_debug_imgui();
