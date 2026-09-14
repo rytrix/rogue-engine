@@ -165,6 +165,15 @@ void MeshCompiler::serialize(Mesh& mesh)
     }
     LOG_TRACE(std::format("appended {} bones", size));
 
+    // How do I append padding bytes for alignment
+    size_t current_size = m_bytes->size();
+    size_t padding = (8 - (current_size & 7)) & 7;
+
+    for (u32 i = 0; i < padding; i++) {
+        u8 padding_byte = 0;
+        m_bytes->append_bytes(&padding_byte, 1);
+    }
+
     // Append animations
     u64 animations_offset = m_bytes->size();
 
