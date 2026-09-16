@@ -5,29 +5,26 @@
 #include "../../utils/color.hpp"
 #include "../../utils/math/line.hpp"
 
-#include "../transform.hpp"
+#include "../../utils/transform.hpp"
 
-#include "../../physics_jolt/interface.hpp"
+#define ENTITY_IMPL
+#include "../entity.hpp"
 
-Gizmo::Gizmo(GlobalAppData* app_data)
-    : m_app_data(app_data)
-{
-}
+// Gizmo::Gizmo()
+// {
+// }
 
-Gizmo::Gizmo(GlobalAppData* app_data, Transform* transform)
+Gizmo::Gizmo(Utils::Transform* transform)
     : m_transform(transform)
-    , m_app_data(app_data)
 {
 }
 
-void Gizmo::init(GlobalAppData* app_data)
+void Gizmo::init()
 {
-    m_app_data = app_data;
 }
 
-void Gizmo::init(GlobalAppData* app_data, Transform* transform)
+void Gizmo::init(Utils::Transform* transform)
 {
-    m_app_data = app_data;
     m_transform = transform;
 }
 
@@ -46,11 +43,18 @@ void Gizmo::on_event(Event& event)
             if (event.m_sdl_event.button.button == SDL_BUTTON_LEFT) {
                 test_intersection();
 #ifdef GIZMO_DEBUG_RAY
-                m_prev_ray = Utils::ray_from_mouse(m_app_data);
+                m_prev_ray = Utils::ray_from_mouse();
 #endif
             }
         } else if (event.m_sdl_event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
             if (event.m_sdl_event.button.button == SDL_BUTTON_LEFT) {
+                Entity selected_entity = g_global_app_data->m_entity_selector->m_selected_entity;
+                if (selected_entity.has_component<PhysicsBox3d::EntityInfo>() && selected_entity.has_component<Utils::Transform>()) {
+                    auto& physics_info = selected_entity.get_component<PhysicsBox3d::EntityInfo>();
+                    auto& transform = selected_entity.get_component<Utils::Transform>();
+                    selected_entity.get_scene()->m_physics_engine->set_body_transform(physics_info.m_id, transform);
+                }
+
                 m_prev_hit.on_down = false;
             }
         }
@@ -67,7 +71,7 @@ void Gizmo::update()
         return;
     }
 
-    auto ray = Utils::ray_from_mouse(m_app_data);
+    auto ray = Utils::ray_from_mouse();
     glm::vec3 position = m_transform->get_position();
 
     if (m_state == State::Rotation) {
@@ -165,7 +169,7 @@ void Gizmo::test_intersection()
 
 void Gizmo::test_intersection_lines()
 {
-    auto ray = Utils::ray_from_mouse(m_app_data);
+    auto ray = Utils::ray_from_mouse();
     auto view_direction = glm::normalize(m_transform->get_position() - ray.position);
     auto radius = get_radius();
 
@@ -224,7 +228,7 @@ void Gizmo::test_intersection_lines()
 
 void Gizmo::test_intersection_rotation()
 {
-    auto ray = Utils::ray_from_mouse(m_app_data);
+    auto ray = Utils::ray_from_mouse();
 
     Utils::Ring ring {};
     ring.position = m_transform->get_position();
@@ -265,31 +269,31 @@ void Gizmo::test_intersection_rotation()
 
 f32 Gizmo::get_radius()
 {
-    auto camera_pos = m_app_data->m_camera.get_pos();
+    auto camera_pos = g_global_app_data->m_camera->get_pos();
     auto gizmo_pos = m_transform->get_position();
     return m_radius + glm::distance(camera_pos, gizmo_pos) / RADIUS_DOUBLE_DISTANCE * m_radius;
 }
 
 void Gizmo::batch_rotations(f32 radius)
 {
-    Transform transform;
+    Utils::Transform transform;
     transform.set_position(m_transform->get_position());
-    m_app_data->m_line_renderer.add_circle(transform.get_model_matrix(), radius, Utils::Color::Blue);
+    g_global_app_data->m_line_renderer->add_circle(transform.get_model_matrix(), radius, Utils::Color::Blue);
     transform.set_euler_angles(glm::vec3(90.0, 0.0, 0.0));
-    m_app_data->m_line_renderer.add_circle(transform.get_model_matrix(), radius, Utils::Color::Green);
+    g_global_app_data->m_line_renderer->add_circle(transform.get_model_matrix(), radius, Utils::Color::Green);
     transform.set_euler_angles(glm::vec3(0.0, 90.0, 0.0));
-    m_app_data->m_line_renderer.add_circle(transform.get_model_matrix(), radius, Utils::Color::Red);
+    g_global_app_data->m_line_renderer->add_circle(transform.get_model_matrix(), radius, Utils::Color::Red);
 }
 
 void Gizmo::batch_lines(f32 radius)
 {
-    Transform transform;
+    Utils::Transform transform;
     transform.set_position(m_transform->get_position());
-    m_app_data->m_line_renderer.add_line(transform.get_model_matrix(),
+    g_global_app_data->m_line_renderer->add_line(transform.get_model_matrix(),
         glm::vec3(0.0, -radius, 0.0), glm::vec3(0.0, radius, 0.0), Utils::Color::Blue);
-    m_app_data->m_line_renderer.add_line(transform.get_model_matrix(),
+    g_global_app_data->m_line_renderer->add_line(transform.get_model_matrix(),
         glm::vec3(-radius, 0.0, 0.0), glm::vec3(radius, 0.0, 0.0), Utils::Color::Green);
-    m_app_data->m_line_renderer.add_line(transform.get_model_matrix(),
+    g_global_app_data->m_line_renderer->add_line(transform.get_model_matrix(),
         glm::vec3(0.0, 0.0, -radius), glm::vec3(0.0, 0.0, radius), Utils::Color::Red);
 }
 
@@ -297,24 +301,24 @@ void Gizmo::imgui_ui()
 {
     ImGui::Begin("Gizmo");
 
-    if (m_app_data->m_entity_selector.m_selected_entity.valid()) {
+    if (g_global_app_data->m_entity_selector->m_selected_entity.valid()) {
         if (ImGui::Button("Gizmo Translation")) {
-            m_app_data->m_gizmo.m_state = Gizmo::State::Translation;
+            g_global_app_data->m_gizmo->m_state = Gizmo::State::Translation;
         }
         ImGui::SameLine();
         if (ImGui::Button("Gizmo Rotation")) {
-            m_app_data->m_gizmo.m_state = Gizmo::State::Rotation;
+            g_global_app_data->m_gizmo->m_state = Gizmo::State::Rotation;
         }
-        if (!m_app_data->m_entity_selector.m_selected_entity.has_component<Physics::PhysicsInfo>()
-            || (m_app_data->m_entity_selector.m_selected_entity.has_component<Physics::PhysicsInfo>()
-                && m_app_data->m_entity_selector.m_selected_entity.get_component<Physics::PhysicsInfo>().m_motion_type == JPH::EMotionType::Static)) {
+        if (!g_global_app_data->m_entity_selector->m_selected_entity.has_component<PhysicsBox3d::EntityInfo>()
+            || (g_global_app_data->m_entity_selector->m_selected_entity.has_component<PhysicsBox3d::EntityInfo>()
+                && g_global_app_data->m_entity_selector->m_selected_entity.get_component<PhysicsBox3d::EntityInfo>().m_motion_type == PhysicsBox3d::MotionType::Static)) {
             ImGui::SameLine();
             if (ImGui::Button("Gizmo Scale")) {
-                m_app_data->m_gizmo.m_state = Gizmo::State::Scale;
+                g_global_app_data->m_gizmo->m_state = Gizmo::State::Scale;
             }
         }
         if (ImGui::Button("Deselect Entity")) {
-            m_app_data->m_entity_selector.deselect_entity();
+            g_global_app_data->m_entity_selector->deselect_entity();
         }
     }
 

@@ -9,6 +9,8 @@ public:
     ~ByteStream();
 
     size_t append_bytes(const void* bytes, size_t size_in_bytes);
+    size_t align(size_t alignment = 8);
+    static u8* align_ptr(u8* ptr, size_t alignment = 8);
 
     void resize(size_t new_capacity);
 

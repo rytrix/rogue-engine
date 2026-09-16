@@ -11,17 +11,17 @@ add_executable(${PROJECT_NAME}
 
     src/scene/scene.cpp
     src/scene/entity.cpp
-    src/scene/transform.cpp
     src/scene/resource_manager.cpp
-    src/scene/components/gizmo.cpp
-    src/scene/components/entity_selector.cpp
+    src/scene/systems/gizmo.cpp
+    src/scene/systems/entity_selector.cpp
 
-    src/physics_jolt/engine.cpp
-    src/physics_jolt/interface.cpp
-    src/physics_jolt/debugrenderer.cpp
+    # src/physics_jolt/engine.cpp
+    # src/physics_jolt/interface.cpp
+    # src/physics_jolt/debugrenderer.cpp
 
     src/physics_box3d/engine.cpp
 
+    src/utils/transform.cpp
     src/utils/deltatime.cpp
     src/utils/bytestream.cpp
     src/utils/math/ray.cpp
@@ -62,8 +62,10 @@ add_executable(${PROJECT_NAME}
     src/renderer/light/pbr/spot.cpp
 )
 
-target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
-target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address,undefined)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address,undefined)
+endif()
 
 target_precompile_headers(${PROJECT_NAME} PUBLIC src/pch.hpp)
 target_compile_options(${PROJECT_NAME} PRIVATE -fno-rtti)
@@ -82,10 +84,10 @@ set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "Enable compiling with extra warnin
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Disable building assimp tests" FORCE)
 add_subdirectory(vendor/assimp)
 
-set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "Stop warnings as errors for JoltPhysics" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libs for JoltPhysics" FORCE)
-set(DOUBLE_PRECISION OFF CACHE BOOL "Double precision floats for JoltPhysics" FORCE)
-add_subdirectory(vendor/JoltPhysics/Build)
+# set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "Stop warnings as errors for JoltPhysics" FORCE)
+# set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libs for JoltPhysics" FORCE)
+# set(DOUBLE_PRECISION OFF CACHE BOOL "Double precision floats for JoltPhysics" FORCE)
+# add_subdirectory(vendor/JoltPhysics/Build)
 
 add_subdirectory(vendor/box3d)
 
@@ -118,7 +120,7 @@ target_link_libraries(${PROJECT_NAME}
     stb_image
     SDL3::SDL3
     assimp
-    Jolt::Jolt
+    # Jolt::Jolt
     imgui
     freetype
     box3d::box3d

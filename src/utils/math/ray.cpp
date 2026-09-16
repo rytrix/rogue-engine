@@ -23,12 +23,12 @@ glm::vec3 Ray::get_inverse()
     return inv_direction;
 }
 
-[[nodiscard]] Utils::Ray ray_from_mouse(GlobalAppData* data)
+[[nodiscard]] Utils::Ray ray_from_mouse()
 {
-    glm::mat4 inv_proj_view = data->m_camera.get_inverse_proj_view();
+    glm::mat4 inv_proj_view = g_global_app_data->m_camera->get_inverse_proj_view();
 
-    glm::vec2 mouse_pos = data->m_window.get_mouse_pos();
-    glm::vec2 screen_size = data->m_window.get_size_f32();
+    glm::vec2 mouse_pos = g_global_app_data->m_window->get_mouse_pos();
+    glm::vec2 screen_size = g_global_app_data->m_window->get_size_f32();
 
     glm::vec2 screen_coord = mouse_pos / screen_size;
     screen_coord.y = 1.0F - screen_coord.y;
@@ -38,23 +38,23 @@ glm::vec3 Ray::get_inverse()
         = inv_proj_view * glm::vec4(screen_coord.x, screen_coord.y, 1.0F, 1.0F);
 
     glm::vec3 world_point = glm::vec3(target) / target.w;
-    glm::vec3 camera_pos = data->m_camera.get_pos();
+    glm::vec3 camera_pos = g_global_app_data->m_camera->get_pos();
     glm::vec3 ray_dir = glm::normalize(world_point - camera_pos);
 
-    return { data->m_camera.get_pos(), ray_dir };
+    return { g_global_app_data->m_camera->get_pos(), ray_dir };
 }
 
-[[nodiscard]] Utils::Ray ray_from_center(GlobalAppData* data)
+[[nodiscard]] Utils::Ray ray_from_center()
 {
-    glm::mat4 inv_proj_view = data->m_camera.get_inverse_proj_view();
+    glm::mat4 inv_proj_view = g_global_app_data->m_camera->get_inverse_proj_view();
     glm::vec4 target
         = inv_proj_view * glm::vec4(0.0F, 0.0F, 1.0F, 1.0F);
 
     glm::vec3 world_point = glm::vec3(target) / target.w;
-    glm::vec3 camera_pos = data->m_camera.get_pos();
+    glm::vec3 camera_pos = g_global_app_data->m_camera->get_pos();
     glm::vec3 ray_dir = glm::normalize(world_point - camera_pos);
 
-    return { data->m_camera.get_pos(), ray_dir };
+    return { g_global_app_data->m_camera->get_pos(), ray_dir };
 }
 
 [[nodiscard]] std::optional<RayRingResult> intersect_ray_ring(const Ray& ray, const Ring& ring)

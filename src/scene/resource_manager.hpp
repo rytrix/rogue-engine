@@ -162,6 +162,7 @@ void run_resource_manager_fuzzer(size_t iterations, size_t pool_size);
 template <typename T>
 class SceneResourceManager {
 public:
+    SceneResourceManager(usize size);
     void init(usize size);
 
     template <typename... Args>
@@ -179,6 +180,13 @@ private:
     std::unordered_map<Utils::String, Handle> m_map;
     ResourceManager<T> m_cache;
 };
+
+
+template <typename T>
+SceneResourceManager<T>::SceneResourceManager(usize size)
+{
+    init(size);
+}
 
 template <typename T>
 void SceneResourceManager<T>::init(usize size)

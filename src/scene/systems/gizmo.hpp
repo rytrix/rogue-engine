@@ -1,8 +1,8 @@
 #pragma once
 
-class GlobalAppData;
+struct GlobalAppData;
 
-#include "../transform.hpp"
+#include "../../utils/transform.hpp"
 
 #include "../event.hpp"
 
@@ -15,11 +15,10 @@ public:
     };
     Gizmo() = default;
 
-    Gizmo(GlobalAppData* app_data);
-    Gizmo(GlobalAppData* app_data, Transform* transform);
+    Gizmo(Utils::Transform* transform);
 
-    void init(GlobalAppData* app_data);
-    void init(GlobalAppData* app_data, Transform* transform);
+    void init();
+    void init(Utils::Transform* transform);
 
     void on_event(Event& event);
     void update();
@@ -31,11 +30,9 @@ public:
     State m_state = State::Translation;
     f32 m_radius = 2.0;
 
-    Transform* m_transform = nullptr;
+    Utils::Transform* m_transform = nullptr;
 
 private:
-    GlobalAppData* m_app_data = nullptr;
-
     static constexpr f32 LINE_THICKNESS = 0.3F;
     static constexpr f32 LINE_THICKNESS_DOUBLE_DISTANCE = 50.0F;
     static constexpr f32 RADIUS_DOUBLE_DISTANCE = 10.0F;

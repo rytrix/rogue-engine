@@ -1,12 +1,7 @@
+#define ENTITY_IMPL
 #include "entity.hpp"
 
-#include "scene.hpp"
-
 #include "../app_data.hpp"
-
-#include "../utils/file.hpp"
-
-#include "../physics_jolt/interface.hpp"
 
 Entity::Entity(Scene* scene, entt::entity entity)
     : m_scene(scene)
@@ -45,16 +40,15 @@ void Entity::add_name(Entity entity, const char* name)
     entity.add_component<Utils::String>(name);
 }
 
-void Entity::add_transform(Entity entity, const Transform& transform)
+void Entity::add_transform(Entity entity, const Utils::Transform& transform)
 {
-    entity.add_component<Transform>(transform);
+    entity.add_component<Utils::Transform>(transform);
 }
 
 void Entity::add_mesh(Entity entity, const char* path)
 {
-    GlobalAppData* app_data = entity.m_scene->m_app_data;
-    auto* mesh_cache = &app_data->m_mesh_cache;
-    auto handle = mesh_cache->get_or_create(path, path, app_data);
+    auto* mesh_cache = g_global_app_data->m_mesh_cache;
+    auto handle = mesh_cache->get_or_create(path, path);
     auto* mesh = mesh_cache->get(handle);
     auto result = mesh->get_result();
     if (result.type != Renderer::ModelResultEnum::Ok) {
@@ -77,25 +71,41 @@ void Entity::add_mesh(Entity entity, const char* path)
 void Entity::add_static_body(Entity entity)
 {
     util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
-    auto physics_info = Physics::create_static_body(entity);
-    entity.add_component<Physics::PhysicsInfo>(physics_info);
-    entity.get_scene()->m_physics_needs_optimize = true;
+
+    // auto physics_info = PhysicsBox::create_static_body(entity);
+    // entity.add_component<Physics::PhysicsInfo>(physics_info);
+    // entity.get_scene()->m_physics_needs_optimize = true;
+
+    auto entity_info = entity.get_scene()->m_physics_engine->create_mesh_body(entity);
+    if (B3_IS_NULL(entity_info.m_id)) {
+        LOG_ERROR("Failed to create mesh body");
+        return;
+    }
+    entity.add_component<PhysicsBox3d::EntityInfo>(entity_info);
 }
 
-void Entity::add_dynamic_body(Entity entity, JPH::Ref<JPH::Shape> shape)
-{
-    util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
-    auto physics_info = Physics::create_dynamic_body(entity, shape);
-    entity.add_component<Physics::PhysicsInfo>(physics_info);
-    entity.get_scene()->m_physics_needs_optimize = true;
-}
+// void Entity::add_dynamic_body(Entity entity, JPH::Ref<JPH::Shape> shape)
+// {
+//     util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
+//     auto physics_info = Physics::create_dynamic_body(entity, shape);
+//     entity.add_component<Physics::PhysicsInfo>(physics_info);
+//     // entity.get_scene()->m_physics_needs_optimize = true;
+// }
 
 void Entity::add_convex_hull_body(Entity entity)
 {
     util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
-    auto physics_info = Physics::create_convex_hull(entity);
-    entity.add_component<Physics::PhysicsInfo>(physics_info);
-    entity.get_scene()->m_physics_needs_optimize = true;
+
+    // auto physics_info = Physics::create_convex_hull(entity);
+    // entity.add_component<Physics::PhysicsInfo>(physics_info);
+    // entity.get_scene()->m_physics_needs_optimize = true;
+
+    auto entity_info = entity.get_scene()->m_physics_engine->create_hull_body(entity);
+    if (B3_IS_NULL(entity_info.m_id)) {
+        LOG_ERROR("Failed to create convex hull body");
+        return;
+    }
+    entity.add_component<PhysicsBox3d::EntityInfo>(entity_info);
 }
 
 void Entity::add_pbr_directional_light(Entity entity, Renderer::Light::Pbr::Directional& info)
@@ -141,8 +151,8 @@ void Entity::to_json(nlohmann::json& json, Entity entity)
         json["name"] = entity.get_component<Utils::String>().c_str();
     }
 
-    if (entity.has_component<Transform>()) {
-        Transform transform = entity.get_component<Transform>();
+    if (entity.has_component<Utils::Transform>()) {
+        Utils::Transform transform = entity.get_component<Utils::Transform>();
         json["transform"]["position"] = {
             transform.get_position().x,
             transform.get_position().y,
@@ -166,11 +176,11 @@ void Entity::to_json(nlohmann::json& json, Entity entity)
         json["mesh"] = entity.get_component<Renderer::Mesh*>()->m_path.c_str();
     }
 
-    if (entity.has_component<Physics::PhysicsInfo>()) {
-        auto& info = entity.get_component<Physics::PhysicsInfo>();
-        if (info.m_type == Physics::PhysicsType::Mesh) {
+    if (entity.has_component<PhysicsBox3d::EntityInfo>()) {
+        auto& info = entity.get_component<PhysicsBox3d::EntityInfo>();
+        if (info.m_type == PhysicsBox3d::Type::Mesh) {
             json["physics_body"] = "Mesh";
-        } else if (info.m_type == Physics::PhysicsType::ConvexHull) {
+        } else if (info.m_type == PhysicsBox3d::Type::ConvexHull) {
             json["physics_body"] = "ConvexHull";
         }
     }
@@ -253,9 +263,9 @@ void Entity::from_json(nlohmann::json& json, Entity entity)
     }
 
     if (json.contains("transform")) {
-        Transform transform;
-        if (entity.has_component<Transform>()) {
-            entity.remove_component<Transform>();
+        Utils::Transform transform;
+        if (entity.has_component<Utils::Transform>()) {
+            entity.remove_component<Utils::Transform>();
         }
 
         if (json["transform"].contains("position") && json["transform"]["position"].is_array() && json["transform"]["position"].size() == 3) {
@@ -297,8 +307,8 @@ void Entity::from_json(nlohmann::json& json, Entity entity)
     }
 
     if (json.contains("physics_body") && json["physics_body"].is_string()) {
-        if (entity.has_component<Physics::PhysicsInfo>()) {
-            entity.remove_component<Physics::PhysicsInfo>();
+        if (entity.has_component<PhysicsBox3d::EntityInfo>()) {
+            entity.remove_component<PhysicsBox3d::EntityInfo>();
         }
 
         auto physics_body = json["physics_body"].get_ref<const std::string&>();

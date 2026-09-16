@@ -24,7 +24,6 @@
     {
       "mesh": "res/models/Defeated.fbx",
       "name": "Defeated",
-      "physics_body": "ConvexHull",
       "transform": {
         "position": [
           -3.0719337463378906,

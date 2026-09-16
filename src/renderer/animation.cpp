@@ -184,27 +184,10 @@ void Animation::init(const aiScene* scene, const aiAnimation* animation, const s
     }
 }
 
-void align_stream(Utils::ByteStream& stream, size_t alignment = 8)
-{
-    size_t current = stream.size();
-    size_t padding = (alignment - (current & (alignment - 1))) & (alignment - 1);
-    for (size_t i = 0; i < padding; ++i) {
-        uint8_t zero = 0;
-        stream.append_bytes(&zero, 1);
-    }
-}
-
-u8* align_ptr(u8* ptr, size_t alignment = 8)
-{
-    uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-    uintptr_t aligned = (addr + (alignment - 1)) & ~(alignment - 1);
-    return reinterpret_cast<u8*>(aligned);
-}
-
 void Animation::serialize(Utils::ByteStream& bytestream) const
 {
     bytestream.append_bytes(&m_nodes_size, sizeof(m_nodes_size));
-    align_stream(bytestream, alignof(NodeAnim));
+    bytestream.align(alignof(NodeAnim));
     bytestream.append_bytes(m_nodes, m_nodes_size * sizeof(NodeAnim));
     bytestream.append_bytes(&m_global_inverse_transform, sizeof(m_global_inverse_transform));
     bytestream.append_bytes(&m_total_animation_time, sizeof(m_total_animation_time));
@@ -213,15 +196,15 @@ void Animation::serialize(Utils::ByteStream& bytestream) const
     for (usize i = 0; i < m_nodes_size; i++) {
         NodeAnim* node = &m_nodes[i];
 
-        align_stream(bytestream, alignof(KeyFrame<aiVector3D>));
+        bytestream.align(alignof(KeyFrame<aiVector3D>));
         bytestream.append_bytes(&node->m_scaling_size, sizeof(node->m_scaling_size));
         bytestream.append_bytes(node->m_scaling_keys, node->m_scaling_size * sizeof(KeyFrame<aiVector3D>));
 
-        align_stream(bytestream, alignof(KeyFrame<aiQuaternion>));
+        bytestream.align(alignof(KeyFrame<aiQuaternion>));
         bytestream.append_bytes(&node->m_rotation_size, sizeof(node->m_rotation_size));
         bytestream.append_bytes(node->m_rotation_keys, node->m_rotation_size * sizeof(KeyFrame<aiQuaternion>));
 
-        align_stream(bytestream, alignof(KeyFrame<aiVector3D>));
+        bytestream.align(alignof(KeyFrame<aiVector3D>));
         bytestream.append_bytes(&node->m_position_size, sizeof(node->m_position_size));
         bytestream.append_bytes(node->m_position_keys, node->m_position_size * sizeof(KeyFrame<aiVector3D>));
     }
@@ -233,7 +216,7 @@ u8* Animation::deserialize(u8* start_ptr)
     std::memcpy(&m_nodes_size, ptr, sizeof(m_nodes_size));
     ptr += sizeof(m_nodes_size);
 
-    ptr = align_ptr(ptr, alignof(NodeAnim));
+    ptr = Utils::ByteStream::align_ptr(ptr, alignof(NodeAnim));
     m_nodes = (NodeAnim*)ptr;
     ptr += m_nodes_size * sizeof(*m_nodes);
 
@@ -250,7 +233,7 @@ u8* Animation::deserialize(u8* start_ptr)
         NodeAnim* node = &m_nodes[i];
 
         // Scaling
-        ptr = align_ptr(ptr, alignof(KeyFrame<aiVector3D>));
+        ptr = Utils::ByteStream::align_ptr(ptr, alignof(KeyFrame<aiVector3D>));
         std::memcpy(&node->m_scaling_size, ptr, sizeof(node->m_scaling_size));
         ptr += sizeof(node->m_scaling_size);
 
@@ -258,7 +241,7 @@ u8* Animation::deserialize(u8* start_ptr)
         ptr += node->m_scaling_size * sizeof(*node->m_scaling_keys);
 
         // Rotation
-        ptr = align_ptr(ptr, alignof(KeyFrame<aiQuaternion>));
+        ptr = Utils::ByteStream::align_ptr(ptr, alignof(KeyFrame<aiQuaternion>));
         std::memcpy(&node->m_rotation_size, ptr, sizeof(node->m_rotation_size));
         ptr += sizeof(node->m_rotation_size);
 
@@ -266,7 +249,7 @@ u8* Animation::deserialize(u8* start_ptr)
         ptr += node->m_rotation_size * sizeof(*node->m_rotation_keys);
 
         // Position
-        ptr = align_ptr(ptr, alignof(KeyFrame<aiVector3D>));
+        ptr = Utils::ByteStream::align_ptr(ptr, alignof(KeyFrame<aiVector3D>));
         std::memcpy(&node->m_position_size, ptr, sizeof(node->m_position_size));
         ptr += sizeof(node->m_position_size);
 

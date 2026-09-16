@@ -1,5 +1,7 @@
 #pragma once
 
+namespace Utils {
+
 class Transform {
 public:
     Transform() = default;
@@ -30,3 +32,6 @@ private:
     bool needs_update = true;
     glm::mat4 m_model_matrix = glm::mat4(1.0F);
 };
+
+
+} // namespace Utils

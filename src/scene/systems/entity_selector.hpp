@@ -2,13 +2,15 @@
 
 #include "../entity.hpp"
 #include "../event.hpp"
+#include "../../utils/string.hpp"
+#include "../../renderer/mesh.hpp"
+#include "../scene.hpp"
 
 class EntitySelector : public NoCopyNoMove {
 public:
-    EntitySelector() = default;
-    EntitySelector(Scene* scene, GlobalAppData* app_data);
+    EntitySelector(Scene* scene);
 
-    void init(Scene* scene, GlobalAppData* app_data);
+    void init(Scene* scene);
 
     void on_event(Event& event);
     void update();
@@ -21,7 +23,6 @@ public:
     Entity m_selected_entity;
 
 private:
-    GlobalAppData* m_app_data = nullptr;
     Scene* m_scene = nullptr;
 
     enum State {
@@ -37,8 +38,8 @@ private:
         Utils::String* name = nullptr;
         Renderer::Mesh** mesh = nullptr;
         Renderer::AnimationData* animation_data = nullptr;
-        Transform* transform = nullptr;
-        Physics::PhysicsInfo* physics_info = nullptr;
+        Utils::Transform* transform = nullptr;
+        PhysicsBox3d::EntityInfo* physics_info = nullptr;
         Renderer::Light::Pbr::Point* point = nullptr;
         Renderer::Light::Pbr::PointShadow* point_shadow = nullptr;
         Renderer::Light::Pbr::Directional* directional = nullptr;

@@ -57,7 +57,7 @@ public:
     MeshCompiler(Utils::ByteStream& bytes);
 
     void serialize(Mesh& mesh);
-    void deserialize(Mesh& mesh, const std::span<u8> compiled_mesh, GlobalAppData* app_data);
+    void deserialize(Mesh& mesh, const std::span<u8> compiled_mesh);
 
 private:
     Utils::ByteStream* m_bytes = nullptr;
@@ -70,10 +70,10 @@ MeshCompiler::MeshCompiler(Utils::ByteStream& bytes)
 {
 }
 
-void compile_mesh(Utils::ByteStream& bytes, const char* file_path, GlobalAppData* app_data)
+void compile_mesh(Utils::ByteStream& bytes, const char* file_path)
 {
     Renderer::Mesh mesh;
-    Renderer::load_mesh(mesh, file_path, app_data, MeshLoaderFlags::StoreTextures | MeshLoaderFlags::DontInitializeOpenGL);
+    Renderer::load_mesh(mesh, file_path, MeshLoaderFlags::StoreTextures | MeshLoaderFlags::DontInitializeOpenGL);
     ModelResult result = mesh.get_result();
     if (result.type != ModelResultEnum::Ok) {
         LOG_ERROR(std::format("{}", result.error.c_str()));
@@ -90,10 +90,10 @@ void compile_mesh(Utils::ByteStream& bytes, Mesh& mesh)
     compiler.serialize(mesh);
 }
 
-void load_compiled_mesh(Mesh& mesh, const std::span<u8> compiled_mesh, GlobalAppData* app_data)
+void load_compiled_mesh(Mesh& mesh, const std::span<u8> compiled_mesh)
 {
     MeshCompiler compiler;
-    compiler.deserialize(mesh, compiled_mesh, app_data);
+    compiler.deserialize(mesh, compiled_mesh);
 }
 
 void MeshCompiler::serialize(Mesh& mesh)
@@ -165,16 +165,8 @@ void MeshCompiler::serialize(Mesh& mesh)
     }
     LOG_TRACE(std::format("appended {} bones", size));
 
-    // How do I append padding bytes for alignment
-    size_t current_size = m_bytes->size();
-    size_t padding = (8 - (current_size & 7)) & 7;
-
-    for (u32 i = 0; i < padding; i++) {
-        u8 padding_byte = 0;
-        m_bytes->append_bytes(&padding_byte, 1);
-    }
-
     // Append animations
+    m_bytes->align();
     u64 animations_offset = m_bytes->size();
 
     u64 total_animations = mesh.m_animations.size();
@@ -194,7 +186,7 @@ void MeshCompiler::serialize(Mesh& mesh)
     global_header->offset_to_animations = animations_offset;
 }
 
-void MeshCompiler::deserialize(Mesh& mesh, const std::span<u8> compiled_mesh, GlobalAppData* app_data)
+void MeshCompiler::deserialize(Mesh& mesh, const std::span<u8> compiled_mesh)
 {
     GlobalHeader* header = (GlobalHeader*)compiled_mesh.data();
     if (strcmp(header->magic_number, "CMESH") != 0) {
@@ -294,8 +286,6 @@ void MeshCompiler::deserialize(Mesh& mesh, const std::span<u8> compiled_mesh, Gl
     for (u64 i = 0; i < size; i++) {
         ptr = mesh.m_animations[i].deserialize(ptr);
     }
-
-    mesh.m_app_data = app_data;
 
     // Upload textures to the GPU
     mesh.upload_texture_memory_to_gpu();

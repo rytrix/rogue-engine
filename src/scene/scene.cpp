@@ -1,15 +1,11 @@
 #include "scene.hpp"
 
-#include "../physics_jolt/helpers.hpp"
-#include "../physics_jolt/interface.hpp"
-
 #include "../utils/assert.hpp"
 #include "../utils/file.hpp"
+#include "../utils/transform.hpp"
 
-#include "glm/gtc/quaternion.hpp"
-
+#define ENTITY_IMPL
 #include "entity.hpp"
-#include "transform.hpp"
 
 #include "../app_data.hpp"
 
@@ -169,20 +165,14 @@ constexpr void get_wireframe_shaders(ShaderInfoData<2>& out, const std::string& 
 
 } // anonymous namespace
 
-Scene::Scene(GlobalAppData* app_data)
-    : m_app_data(app_data)
-    , m_random_sampling_texture(Renderer::RandomSamplingTexture::create(16, 8, 2, &app_data->m_texture_cache))
+Scene::Scene()
+    : m_random_sampling_texture(Renderer::RandomSamplingTexture::create(16, 8, 2))
 {
-    m_physics_system = std::make_unique<Physics::System>(this, app_data);
+    m_physics_engine = std::make_unique<PhysicsBox3d::Engine>(this);
 }
 
 Scene::~Scene()
 {
-    auto view = m_registry.view<Physics::PhysicsInfo>();
-    for (auto [entity, body] : view.each()) {
-        m_physics_system->m_body_interface->RemoveBody(body.m_id);
-        m_physics_system->m_body_interface->DestroyBody(body.m_id);
-    }
 }
 
 Entity Scene::create_entity()
@@ -192,7 +182,7 @@ Entity Scene::create_entity()
     Utils::String name;
     name.format("default_{}", (size_t)entity.get_id());
     Entity::add_name(entity, name.c_str());
-    Transform transform;
+    Utils::Transform transform;
     Entity::add_transform(entity, transform);
 
     return entity;
@@ -247,37 +237,30 @@ void Scene::update()
 
     m_clock.update();
 
-    if (m_physics_needs_optimize) {
-        m_physics_system->optimize();
-        m_physics_needs_optimize = false;
-    }
+    // if (m_physics_needs_optimize) {
+    //     // m_physics_system->optimize();
+    //     m_physics_needs_optimize = false;
+    // }
 
     if (m_physics_on) {
-        m_physics_system->update(m_clock.delta_time<float>());
+        m_physics_engine->update(m_clock.delta_time<float>());
 
-        auto view = m_registry.view<Transform, Physics::PhysicsInfo>();
+        auto view = m_registry.view<Utils::Transform, PhysicsBox3d::EntityInfo>();
 
         for (auto [entity, transform, body] : view.each()) {
-            if (body.m_motion_type != JPH::EMotionType::Static) {
-                auto& model = transform.get_model_matrix_ref();
+            if (body.m_motion_type != PhysicsBox3d::MotionType::Static) {
+                m_physics_engine->get_body_transform(transform, body.m_id);
 
-                // glm::mat4 physics_model = Physics::mat4_to_mat4(m_physics_system->m_body_interface->GetCenterOfMassTransform(body.m_id));
-
-                glm::vec3 position = Physics::vec3_to_vec3(m_physics_system->m_body_interface->GetPosition(body.m_id));
-                glm::quat rotation = Physics::quat_to_quat(m_physics_system->m_body_interface->GetRotation(body.m_id));
-
-                transform.set_position(position);
-                transform.set_rotation(rotation);
-
-                auto* point_light = m_registry.try_get<Renderer::Light::Pbr::Point>(entity);
-                if (point_light != nullptr) {
-                    point_light->position = model[3];
-                }
-
-                auto* spot_light = m_registry.try_get<Renderer::Light::Pbr::Spot>(entity);
-                if (spot_light != nullptr) {
-                    spot_light->position = model[3];
-                }
+                // TODO:
+                // auto* point_light = m_registry.try_get<Renderer::Light::Pbr::Point>(entity);
+                // if (point_light != nullptr) {
+                //     point_light->position = model[3];
+                // }
+                //
+                // auto* spot_light = m_registry.try_get<Renderer::Light::Pbr::Spot>(entity);
+                // if (spot_light != nullptr) {
+                //     spot_light->position = model[3];
+                // }
             }
         }
     }
@@ -288,7 +271,7 @@ void Scene::update()
 void Scene::draw()
 {
     if (m_mesh_instance_draw_cache_needs_update) {
-        auto mesh_view = m_registry.view<Transform, Renderer::Mesh*>();
+        auto mesh_view = m_registry.view<Utils::Transform, Renderer::Mesh*>();
 
         m_mesh_instance_draw_cache.clear();
         for (auto [entity, transform, mesh] : mesh_view.each()) {
@@ -319,7 +302,7 @@ void Scene::draw()
         LOG_INFO("Updated scene instanced draw cache");
         m_mesh_instance_draw_cache_needs_update = false;
     } else {
-        auto mesh_view = m_registry.view<Transform, Renderer::Mesh*>();
+        auto mesh_view = m_registry.view<Utils::Transform, Renderer::Mesh*>();
 
         for (auto& mesh : m_mesh_instance_draw_cache) {
             mesh.m_transform_matrices.clear();
@@ -374,12 +357,12 @@ void Scene::draw()
 
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
 
-    m_app_data->m_camera.update();
+    g_global_app_data->m_camera->update();
 
     glCullFace(GL_FRONT);
     auto directional_shadow_view = m_registry.view<Renderer::Light::Pbr::Directional, Renderer::Light::Pbr::DirectionalShadow>();
     for (auto [entity, light, shadow] : directional_shadow_view.each()) {
-        shadow.update(light, m_app_data->m_camera);
+        shadow.update(light, *g_global_app_data->m_camera);
         shadow.shadowmap_begin();
         for (auto& mesh : m_mesh_instance_draw_cache) {
             shadow.shadowmap_draw(mesh.m_mesh);
@@ -410,15 +393,15 @@ void Scene::draw()
     }
 
     glCullFace(GL_BACK);
-    glViewport(0, 0, m_app_data->m_window.get_width(), m_app_data->m_window.get_height());
+    glViewport(0, 0, g_global_app_data->m_window->get_width(), g_global_app_data->m_window->get_height());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     for (auto& mesh_instance : m_mesh_instance_draw_cache) {
         Renderer::Shader& shader = mesh_instance.m_mesh->m_has_bones ? m_shader_bones : m_shader;
         shader.bind();
-        shader.set_mat4("proj", m_app_data->m_camera.get_proj());
-        shader.set_mat4("view", m_app_data->m_camera.get_view());
-        shader.set_vec3("view_position", m_app_data->m_camera.get_pos());
+        shader.set_mat4("proj", g_global_app_data->m_camera->get_proj());
+        shader.set_mat4("view", g_global_app_data->m_camera->get_view());
+        shader.set_vec3("view_position", g_global_app_data->m_camera->get_pos());
 
         auto pbr_directional_view = m_registry.view<Renderer::Light::Pbr::Directional>();
         auto pbr_point_view = m_registry.view<Renderer::Light::Pbr::Point>();
@@ -451,7 +434,7 @@ void Scene::draw()
             i++;
         }
 
-        m_random_sampling_texture.bind_uniforms(shader, "tex_random_offset", &m_app_data->m_texture_cache);
+        m_random_sampling_texture.bind_uniforms(shader, "tex_random_offset");
 
         mesh_instance.m_mesh->draw(shader);
 
@@ -460,7 +443,7 @@ void Scene::draw()
 
     if (has_component<Renderer::Skybox>()) {
         auto& skybox = get_component<Renderer::Skybox>();
-        skybox.draw(m_app_data->m_camera);
+        skybox.draw(*g_global_app_data->m_camera);
     }
 
     Renderer::Texture::reset_texture_units();
@@ -472,7 +455,7 @@ void Scene::draw_entity_wireframe(Entity entity, glm::vec4 color)
         LOG_ERROR("Invalid entity provided to draw_entity_wireframe");
         return;
     }
-    auto transform = entity.get_component<Transform>();
+    auto transform = entity.get_component<Utils::Transform>();
     auto* mesh = entity.get_component<Renderer::Mesh*>();
 
     glDisable(GL_DEPTH_TEST);
@@ -485,16 +468,16 @@ void Scene::draw_entity_wireframe(Entity entity, glm::vec4 color)
         mesh->update(1, transform_temp, animation_data_temp);
 
         m_wireframe_shader_bones.bind();
-        m_wireframe_shader_bones.set_mat4("proj", m_app_data->m_camera.get_proj());
-        m_wireframe_shader_bones.set_mat4("view", m_app_data->m_camera.get_view());
+        m_wireframe_shader_bones.set_mat4("proj", g_global_app_data->m_camera->get_proj());
+        m_wireframe_shader_bones.set_mat4("view", g_global_app_data->m_camera->get_view());
         m_wireframe_shader_bones.set_vec4("u_color", color);
         mesh->draw_untextured(m_wireframe_shader_bones);
     } else {
         mesh->update(1, transform_temp, {});
 
         m_wireframe_shader.bind();
-        m_wireframe_shader.set_mat4("proj", m_app_data->m_camera.get_proj());
-        m_wireframe_shader.set_mat4("view", m_app_data->m_camera.get_view());
+        m_wireframe_shader.set_mat4("proj", g_global_app_data->m_camera->get_proj());
+        m_wireframe_shader.set_mat4("view", g_global_app_data->m_camera->get_view());
         m_wireframe_shader.set_vec4("u_color", color);
         mesh->draw_untextured(m_wireframe_shader);
     }
@@ -521,12 +504,12 @@ void Scene::draw_debug_imgui()
         file << text;
     }
 
-    glm::vec3 cam_pos = m_app_data->m_camera.get_pos();
+    glm::vec3 cam_pos = g_global_app_data->m_camera->get_pos();
     ImGui::Text("%s", std::format("Camera Pos: {}, {}, {}", cam_pos.x, cam_pos.y, cam_pos.z).c_str());
 
-    float camera_speed = m_app_data->m_camera.get_speed();
+    float camera_speed = g_global_app_data->m_camera->get_speed();
     if (ImGui::DragFloat("Camera Speed", &camera_speed, 0.1F, 1.0F, 50.0F)) {
-        m_app_data->m_camera.set_speed(camera_speed);
+        g_global_app_data->m_camera->set_speed(camera_speed);
     }
 
     i32 i = 0;
@@ -548,7 +531,7 @@ void Scene::draw_debug_imgui()
                 ImGui::Text("%s", name.c_str());
                 ImGui::SameLine();
                 if (ImGui::Button("Select Entity")) {
-                    m_app_data->m_entity_selector.select_entity(Entity(this, entity));
+                    g_global_app_data->m_entity_selector->select_entity(Entity(this, entity));
                 }
             }
 

@@ -1,20 +1,17 @@
 #include "entity_selector.hpp"
 
+#define ENTITY_IMPL
+#include "../entity.hpp"
+
 #include "../../app_data.hpp"
 
-#include "../../physics_jolt/helpers.hpp"
-#include "../../physics_jolt/interface.hpp"
-#include "imgui.h"
-
-EntitySelector::EntitySelector(Scene* scene, GlobalAppData* app_data)
-    : m_app_data(app_data)
-    , m_scene(scene)
+EntitySelector::EntitySelector(Scene* scene)
+    : m_scene(scene)
 {
 }
 
-void EntitySelector::init(Scene* scene, GlobalAppData* app_data)
+void EntitySelector::init(Scene* scene)
 {
-    m_app_data = app_data;
     m_scene = scene;
 }
 
@@ -42,13 +39,13 @@ void EntitySelector::on_event(Event& event)
 
 void EntitySelector::update()
 {
-    if (!m_selected_entity.valid() && !m_app_data->m_capture_mouse) {
-        auto ray_result = m_scene->m_physics_system->ray_cast(Utils::ray_from_mouse(m_app_data), m_app_data->m_camera.get_far());
+    if (!m_selected_entity.valid() && !g_global_app_data->m_capture_mouse) {
+        auto ray_result = m_scene->m_physics_engine->ray_cast(Utils::ray_from_mouse(), g_global_app_data->m_camera->get_far());
         if (ray_result.has_value()) {
             auto body_id = ray_result.value();
-            auto view = m_scene->m_registry.view<Physics::PhysicsInfo>();
+            auto view = m_scene->m_registry.view<PhysicsBox3d::EntityInfo>();
             for (auto [entity, body] : view.each()) {
-                if (body.m_id == body_id) {
+                if (B3_ID_EQUALS(body.m_id, body_id)) {
                     m_hovered_entity = Entity(m_scene, entity);
                 }
             }
@@ -57,7 +54,7 @@ void EntitySelector::update()
         m_hovered_entity = Entity(m_scene, entt::null);
     }
 
-    if (m_selected_entity.valid() && !m_app_data->m_capture_mouse) {
+    if (m_selected_entity.valid() && !g_global_app_data->m_capture_mouse) {
         // Expect physics to be off when an entity is selected, but if it gets set to on,
         // the user expects the physics state to remain consistant, so clicking while an entity
         // is selected will invalidate the previous physics state.
@@ -70,39 +67,38 @@ void EntitySelector::update()
 void EntitySelector::draw()
 {
     if (m_hovered_entity.valid()) {
-        m_scene->draw_entity_wireframe(m_app_data->m_entity_selector.m_hovered_entity, glm::vec4(1.0, 0.0, 0.0, 1.0));
+        m_scene->draw_entity_wireframe(m_hovered_entity, glm::vec4(1.0, 0.0, 0.0, 1.0));
     }
 
-    auto& selected_entity = m_app_data->m_entity_selector.m_selected_entity;
+    auto& selected_entity = m_selected_entity;
 
-    if (selected_entity.valid() && selected_entity.has_component<Transform>()) {
-        auto* transform = &selected_entity.get_component<Transform>();
+    if (selected_entity.valid() && selected_entity.has_component<Utils::Transform>()) {
+        auto* transform = &selected_entity.get_component<Utils::Transform>();
 
-        if (selected_entity.has_component<Physics::PhysicsInfo>()) {
-            auto& physics_info = selected_entity.get_component<Physics::PhysicsInfo>();
-            if (physics_info.m_motion_type != JPH::EMotionType::Static) {
-                glm::vec3 pos = Physics::vec3_to_vec3(m_scene->m_physics_system->m_body_interface->GetPosition(physics_info.m_id));
+        if (selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
+            auto& physics_info = selected_entity.get_component<PhysicsBox3d::EntityInfo>();
+            if (physics_info.m_motion_type != PhysicsBox3d::MotionType::Static) {
+                // check if this is still right...
+                glm::vec3 pos = m_scene->m_physics_engine->get_body_pos(physics_info.m_id);
+                glm::quat rot = m_scene->m_physics_engine->get_body_rot(physics_info.m_id);
                 transform->set_position(pos);
-
-                glm::quat quat = Physics::quat_to_quat(m_scene->m_physics_system->m_body_interface->GetRotation(physics_info.m_id));
-                transform->set_rotation(quat);
+                transform->set_rotation(rot);
             }
         }
 
-        m_app_data->m_gizmo.m_transform = transform;
-        m_app_data->m_gizmo.update();
+        g_global_app_data->m_gizmo->m_transform = transform;
+        g_global_app_data->m_gizmo->update();
 
-        if (selected_entity.has_component<Physics::PhysicsInfo>()) {
-            auto& physics_info = selected_entity.get_component<Physics::PhysicsInfo>();
+        if (selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
+            auto& physics_info = selected_entity.get_component<PhysicsBox3d::EntityInfo>();
 
-            if (physics_info.m_motion_type != JPH::EMotionType::Static) {
-                JPH::Vec3 pos = Physics::vec3_to_vec3(transform->get_position());
-                JPH::Quat quat = Physics::quat_to_quat(transform->get_rotation());
-
-                m_scene->m_physics_system->m_body_interface->SetPositionAndRotation(physics_info.m_id, pos, quat, JPH::EActivation::Activate);
+            if (physics_info.m_motion_type != PhysicsBox3d::MotionType::Static) {
+                glm::vec3 pos = m_scene->m_physics_engine->get_body_pos(physics_info.m_id);
+                glm::quat rot = m_scene->m_physics_engine->get_body_rot(physics_info.m_id);
+                m_scene->m_physics_engine->set_body_transform(physics_info.m_id, pos, rot);
             }
         }
-        m_app_data->m_gizmo.draw();
+        g_global_app_data->m_gizmo->draw();
     }
 
     draw_selected_entity_imgui();
@@ -113,7 +109,7 @@ void EntitySelector::select_entity(Entity entity)
 {
     util_assert(entity.valid(), "Trying to select an invalid entity");
     m_selected_entity = entity;
-    m_app_data->m_gizmo.m_state = Gizmo::State::Translation;
+    g_global_app_data->m_gizmo->m_state = Gizmo::State::Translation;
 
     if (m_selected_entity.valid()) {
         m_prev_physics_state = m_scene->m_physics_on ? State::On : State::Off;
@@ -141,7 +137,7 @@ void EntitySelector::draw_selected_entity_imgui()
     auto entity_id = m_selected_entity.get_id();
     auto& registry = m_selected_entity.get_registry();
     auto* scene = m_selected_entity.get_scene();
-    auto* body_interface = scene->m_physics_system->m_body_interface;
+    auto* physics_engine = scene->m_physics_engine.get();
 
     components.entity = m_selected_entity;
     components.scene = scene;
@@ -161,9 +157,9 @@ void EntitySelector::draw_selected_entity_imgui()
 
     components.mesh = registry.try_get<Renderer::Mesh*>(entity_id);
     components.animation_data = registry.try_get<Renderer::AnimationData>(entity_id);
-    components.transform = registry.try_get<Transform>(entity_id);
+    components.transform = registry.try_get<Utils::Transform>(entity_id);
 
-    components.physics_info = registry.try_get<Physics::PhysicsInfo>(entity_id);
+    components.physics_info = registry.try_get<PhysicsBox3d::EntityInfo>(entity_id);
 
     components.point = registry.try_get<Renderer::Light::Pbr::Point>(entity_id);
     components.directional = registry.try_get<Renderer::Light::Pbr::Directional>(entity_id);
@@ -190,7 +186,7 @@ void EntitySelector::draw_selected_entity_imgui()
     draw_add_remove_component_imgui(components);
 
     if (ImGui::Button("Deselect Entity")) {
-        m_app_data->m_entity_selector.deselect_entity();
+        g_global_app_data->m_entity_selector->deselect_entity();
         goto imgui_end_label;
     }
 
@@ -235,23 +231,18 @@ void EntitySelector::draw_selected_entity_imgui()
         auto& body_id = physics_info.m_id;
         auto& motion_type = physics_info.m_motion_type;
 
-        if (motion_type != JPH::EMotionType::Static) {
+        if (motion_type != PhysicsBox3d::MotionType::Static) {
             ImGui::Text("Physics");
-            glm::vec3 cube_pos = Physics::vec3_to_vec3(body_interface->GetPosition(body_id));
-            if (ImGui::DragFloat3("XYZ", &cube_pos.x, 1.0F, MIN_TRANSFORM, MAX_TRANSFORM)) {
-                body_interface->SetPosition(
-                    body_id,
-                    Physics::vec3_to_vec3(cube_pos),
-                    JPH::EActivation::Activate);
+            glm::vec3 pos = scene->m_physics_engine->get_body_pos(body_id);
+            glm::quat rot = scene->m_physics_engine->get_body_rot(body_id);
+            // glm::vec3 cube_pos = Physics::vec3_to_vec3(body_interface->GetPosition(body_id));
+            if (ImGui::DragFloat3("XYZ", &pos.x, 1.0F, MIN_TRANSFORM, MAX_TRANSFORM)) {
+                scene->m_physics_engine->set_body_transform(body_id, pos, rot);
             }
 
-            glm::quat cube_rot = Physics::quat_to_quat(body_interface->GetRotation(body_id));
-            glm::vec3 euler_angles = glm::degrees(glm::eulerAngles(cube_rot));
+            glm::vec3 euler_angles = glm::degrees(glm::eulerAngles(rot));
             if (ImGui::DragFloat3("Rotation: XYZ", &euler_angles.x, 1.0F, MIN_ROTATION, MAX_ROTATION)) {
-                body_interface->SetRotation(
-                    body_id,
-                    Physics::quat_to_quat(glm::quat(glm::radians(euler_angles))),
-                    JPH::EActivation::Activate);
+                scene->m_physics_engine->set_body_transform(body_id, pos, glm::quat(glm::radians(euler_angles)));
             }
 
             ImGui::Checkbox("Show Debug Physics Body Wireframe", &components.physics_info->m_should_debug_draw);
@@ -280,17 +271,16 @@ void EntitySelector::draw_selected_entity_imgui()
             }
 
             if (ImGui::Button("Recreate static body")) {
-                util_assert(body_interface->IsAdded(body_id), "body not present");
-                body_interface->RemoveBody(body_id);
-                body_interface->DestroyBody(body_id);
-                util_assert(!body_interface->IsAdded(body_id), "body not removed");
+                scene->m_physics_engine->remove_body(body_id);
 
-                auto new_physics_info = Physics::create_static_body(Entity(scene, entity_id));
-                // auto new_physics_info = physics_info.m_physics_fn(m_physics_system.get(), Entity(scene, entity));
-                physics_info.m_id = new_physics_info.m_id;
-                physics_info.m_motion_type = new_physics_info.m_motion_type;
+                // TODO: do I want this to just be my entity function? mainly for safety..
+                physics_info = scene->m_physics_engine->create_mesh_body(Entity(scene, entity_id));
 
-                scene->m_physics_needs_optimize = true;
+                // // auto new_physics_info = physics_info.m_physics_fn(m_physics_system.get(), Entity(scene, entity));
+                // physics_info.m_id = new_physics_info.m_id;
+                // physics_info.m_motion_type = new_physics_info.m_motion_type;
+
+                // scene->m_physics_needs_optimize = true;
             }
         }
     }
@@ -378,11 +368,11 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
             Entity::add_static_body(components.entity);
         }
         if (components.mesh != nullptr && components.physics_info == nullptr && ImGui::BeginMenu("Add Dynamic Body")) {
-            if (ImGui::MenuItem("Box Shape")) {
-                JPH::BoxShapeSettings settings(JPH::Vec3(0.5, 0.5, 0.5));
-                JPH::Ref<JPH::Shape> shape = settings.Create().Get();
-                Entity::add_dynamic_body(components.entity, shape);
-            }
+            // if (ImGui::MenuItem("Box Shape")) {
+            //     JPH::BoxShapeSettings settings(JPH::Vec3(0.5, 0.5, 0.5));
+            //     JPH::Ref<JPH::Shape> shape = settings.Create().Get();
+            //     Entity::add_dynamic_body(components.entity, shape);
+            // }
             if (ImGui::MenuItem("Convex Hull Shape")) {
                 Entity::add_convex_hull_body(components.entity);
             }
@@ -435,15 +425,15 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
             }
             components.scene->m_mesh_instance_draw_cache_needs_update = true;
         }
-        if (components.physics_info != nullptr && components.physics_info->m_type == Physics::PhysicsType::Mesh && ImGui::MenuItem("Remove Static Body")) {
-            components.scene->m_physics_system->remove_delete_body(components.physics_info->m_id);
-            components.entity.remove_component<Physics::PhysicsInfo>();
-            components.scene->m_physics_needs_optimize = true;
+        if (components.physics_info != nullptr && components.physics_info->m_type == PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Static Body")) {
+            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
+            components.entity.remove_component<PhysicsBox3d::EntityInfo>();
+            // components.scene->m_physics_needs_optimize = true;
         }
-        if (components.physics_info != nullptr && components.physics_info->m_type != Physics::PhysicsType::Mesh && ImGui::MenuItem("Remove Dynamic Body")) {
-            components.scene->m_physics_system->remove_delete_body(components.physics_info->m_id);
-            components.entity.remove_component<Physics::PhysicsInfo>();
-            components.scene->m_physics_needs_optimize = true;
+        if (components.physics_info != nullptr && components.physics_info->m_type != PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Dynamic Body")) {
+            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
+            components.entity.remove_component<PhysicsBox3d::EntityInfo>();
+            // components.scene->m_physics_needs_optimize = true;
         }
         bool has_light = components.directional != nullptr || components.point != nullptr || components.spot != nullptr;
         if (has_light && ImGui::BeginMenu("Remove Light")) {

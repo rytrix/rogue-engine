@@ -21,16 +21,14 @@ namespace Renderer {
 class ModelLoader : public NoCopyNoMove {
 public:
     ModelLoader() = default;
-    ModelLoader(Mesh& mesh, const char* path, GlobalAppData* app_data, MeshLoaderFlags flags);
+    ModelLoader(Mesh& mesh, const char* path, MeshLoaderFlags flags);
     ~ModelLoader();
 
-    void init(const char* path, GlobalAppData* app_data);
+    void init(const char* path);
 
     ModelResult m_error;
 
 private:
-    GlobalAppData* m_app_data = nullptr;
-
     std::string m_directory;
 
     Mesh& m_mesh;
@@ -51,24 +49,23 @@ private:
     static std::string sanitize_path_to_filename(std::string path_str);
 };
 
-ModelResult load_mesh(Mesh& mesh, const char* path, GlobalAppData* app_data, MeshLoaderFlags flags)
+ModelResult load_mesh(Mesh& mesh, const char* path, MeshLoaderFlags flags)
 {
-    ModelLoader loader(mesh, path, app_data, flags);
+    ModelLoader loader(mesh, path, flags);
     return loader.m_error;
 }
 
-ModelLoader::ModelLoader(Mesh& mesh, const char* file_path, GlobalAppData* app_data, MeshLoaderFlags flags)
+ModelLoader::ModelLoader(Mesh& mesh, const char* file_path, MeshLoaderFlags flags)
     : m_mesh(mesh)
     , m_flags(flags)
 {
-    init(file_path, app_data);
+    init(file_path);
     m_mesh.m_result = m_error;
 }
 
-void ModelLoader::init(const char* file_path, GlobalAppData* app_data)
+void ModelLoader::init(const char* file_path)
 {
     m_directory = file_path;
-    m_app_data = app_data;
 
     if (!std::filesystem::exists(file_path)) {
         m_error.type = ModelResultEnum::InvalidFilePath;
@@ -81,7 +78,7 @@ void ModelLoader::init(const char* file_path, GlobalAppData* app_data)
         // load the compiled mesh instead
         bool result = Utils::read_file(m_mesh.m_serialized_bytes, compiled_path.c_str());
         if (result) {
-            Renderer::load_compiled_mesh(m_mesh, { (u8*)m_mesh.m_serialized_bytes.data(), m_mesh.m_serialized_bytes.size() }, app_data);
+            Renderer::load_compiled_mesh(m_mesh, { (u8*)m_mesh.m_serialized_bytes.data(), m_mesh.m_serialized_bytes.size() });
             return;
         }
     }
@@ -125,8 +122,6 @@ void ModelLoader::init(const char* file_path, GlobalAppData* app_data)
 
 void ModelLoader::setup_mesh(const aiScene* scene)
 {
-    m_mesh.m_app_data = m_app_data;
-
     process_node(scene->mRootNode, scene);
 
     usize offset = 0;
@@ -234,7 +229,7 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
             auto diffuse_map = load_material_texture(material, aiTextureType_DIFFUSE, scene);
             if (diffuse_map.generation.valid == 0) {
                 LOG_WARN("Using default albedo texture map");
-                m_mesh.m_texture_data.m_diffuse_textures.push_back(m_app_data->m_default_textures.get_albedo());
+                m_mesh.m_texture_data.m_diffuse_textures.push_back(g_global_app_data->m_default_textures->get_albedo());
             } else {
                 m_mesh.m_texture_data.m_diffuse_textures.push_back(diffuse_map);
             }
@@ -242,7 +237,7 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
             auto metallic_roughness_map = load_material_texture(material, aiTextureType_GLTF_METALLIC_ROUGHNESS, scene);
             if (metallic_roughness_map.generation.valid == 0) {
                 LOG_WARN("Using default metallic texture map");
-                m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(m_app_data->m_default_textures.get_metallic());
+                m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(g_global_app_data->m_default_textures->get_metallic());
             } else {
                 m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(metallic_roughness_map);
             }
@@ -250,7 +245,7 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
             auto normal_map = load_material_texture(material, aiTextureType_NORMALS, scene);
             if (normal_map.generation.valid == 0) {
                 LOG_WARN("Using default normal texture map");
-                m_mesh.m_texture_data.m_normal_textures.push_back(m_app_data->m_default_textures.get_normal());
+                m_mesh.m_texture_data.m_normal_textures.push_back(g_global_app_data->m_default_textures->get_normal());
             } else {
                 m_mesh.m_texture_data.m_normal_textures.push_back(normal_map);
             }
@@ -372,7 +367,7 @@ Handle ModelLoader::load_material_texture(const aiMaterial* mat, const aiTexture
         texture_info.mipmap_levels = 0;
         texture_info.memory_info.flip = false;
 
-        auto* texture_cache = &m_app_data->m_texture_cache;
+        auto* texture_cache = g_global_app_data->m_texture_cache;
         if (embedded_texture == nullptr) {
             Utils::String texture_path = Utils::format("{}/{}", m_directory.c_str(), str.C_Str());
 

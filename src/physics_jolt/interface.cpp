@@ -13,8 +13,8 @@ PhysicsInfo create_static_body(Entity entity)
 
     JPH::TriangleList triangles;
     const auto* mesh = entity.get_component<Renderer::Mesh*>();
-    if (entity.has_component<Transform>()) {
-        auto& transform = entity.get_component<Transform>();
+    if (entity.has_component<Utils::Transform>()) {
+        auto& transform = entity.get_component<Utils::Transform>();
         Physics::System::create_mesh_triangle_list_base_index(triangles, transform.get_model_matrix(), mesh);
     } else {
         Physics::System::create_mesh_triangle_list_base_index(triangles, mesh);
@@ -50,8 +50,8 @@ PhysicsInfo create_dynamic_body(Entity entity, JPH::Ref<JPH::Shape> shape)
     JPH::RVec3 position { 0.0, 0.0, 0.0 };
     JPH::Quat rotation { JPH::Quat::sIdentity() };
 
-    if (entity.has_component<Transform>()) {
-        auto& transform = entity.get_component<Transform>();
+    if (entity.has_component<Utils::Transform>()) {
+        auto& transform = entity.get_component<Utils::Transform>();
 
         position = Physics::vec3_to_vec3(transform.get_position());
         rotation = Physics::quat_to_quat(transform.get_rotation());
@@ -89,8 +89,8 @@ PhysicsInfo create_convex_hull(Entity entity)
 
     JPH::Array<JPH::Vec3> triangles;
     const auto* mesh = entity.get_component<Renderer::Mesh*>();
-    if (entity.has_component<Transform>()) {
-        auto& transform = entity.get_component<Transform>();
+    if (entity.has_component<Utils::Transform>()) {
+        auto& transform = entity.get_component<Utils::Transform>();
 
         position = Physics::vec3_to_vec3(transform.get_position());
         rotation = Physics::quat_to_quat(transform.get_rotation());

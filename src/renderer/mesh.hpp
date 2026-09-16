@@ -13,7 +13,7 @@
 
 #include "../scene/resource_manager.hpp"
 
-class GlobalAppData;
+struct GlobalAppData;
 
 namespace Renderer {
 
@@ -84,7 +84,7 @@ public:
         std::vector<Handle> m_normal_textures;
     };
 
-    Mesh(const char* path, GlobalAppData* app_data);
+    Mesh(const char* path);
     Mesh() = default;
     ~Mesh();
 
@@ -113,8 +113,6 @@ public:
     std::vector<Utils::AABB> m_aabbs;
 
     Utils::String m_path;
-
-    GlobalAppData* m_app_data = nullptr;
 
 private:
     struct IndirectCommands {

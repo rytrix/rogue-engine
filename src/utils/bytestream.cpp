@@ -42,6 +42,26 @@ size_t ByteStream::append_bytes(const void* bytes, size_t size_in_bytes)
     return size_in_bytes;
 }
 
+
+size_t ByteStream::align(size_t alignment)
+{
+    size_t current = size();
+    size_t padding = (alignment - (current & (alignment - 1))) & (alignment - 1);
+    for (size_t i = 0; i < padding; ++i) {
+        uint8_t zero = 0;
+        append_bytes(&zero, 1);
+    }
+
+    return padding;
+}
+
+u8* ByteStream::align_ptr(u8* ptr, size_t alignment)
+{
+    uintptr_t addr = (uintptr_t)ptr;
+    uintptr_t aligned = (addr + (alignment - 1)) & ~(alignment - 1);
+    return (u8*)aligned;
+}
+
 void ByteStream::resize(size_t new_capacity)
 {
     if (new_capacity <= m_capacity) {

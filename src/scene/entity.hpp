@@ -1,11 +1,14 @@
-#pragma once
+#ifndef ENTITY_HPP
+#define ENTITY_HPP
 
-#include "scene.hpp"
-#include "transform.hpp"
+#include "../utils/transform.hpp"
 
+class Scene;
 class Entity;
-namespace Physics {
-class PhysicsInfo;
+namespace Renderer::Light::Pbr {
+    class Directional;
+    class Point;
+    class Spot;
 }
 
 class Entity {
@@ -33,10 +36,10 @@ public:
 
     // Helper functions
     static void add_name(Entity entity, const char* name);
-    static void add_transform(Entity entity, const Transform& transform);
+    static void add_transform(Entity entity, const Utils::Transform& transform);
     static void add_mesh(Entity entity, const char* path);
     static void add_static_body(Entity entity);
-    static void add_dynamic_body(Entity entity, JPH::Ref<JPH::Shape> shape);
+    // static void add_dynamic_body(Entity entity, JPH::Ref<JPH::Shape> shape);
     static void add_convex_hull_body(Entity entity);
     static void add_pbr_directional_light(Entity entity, Renderer::Light::Pbr::Directional& info);
     static void add_pbr_directional_light_shadow(Entity entity);
@@ -53,33 +56,8 @@ private:
     entt::entity m_entity = entt::null;
 };
 
-template <typename T, typename... Args>
-T& Entity::add_component(Args&&... args)
-{
-    if (has_component<T>()) {
-        remove_component<T>();
-    }
-    // util_assert(has_component<T>() == false, std::format("Entity already has component \"{}\"", typeid(T).name()));
-    return m_scene->m_registry.emplace<T>(m_entity, std::forward<Args>(args)...);
-}
+#endif
 
-template <typename T>
-void Entity::remove_component()
-{
-    m_scene->m_registry.remove<T>(m_entity);
-}
-
-template <typename T>
-T& Entity::get_component()
-{
-    return m_scene->m_registry.get<T>(m_entity);
-}
-
-template <typename T>
-bool Entity::has_component()
-{
-    if (!valid()) {
-        return false;
-    }
-    return m_scene->m_registry.all_of<T>(m_entity);
-}
+#ifdef ENTITY_IMPL
+#include "entity_impl.hpp"
+#endif

@@ -2,7 +2,7 @@
 
 #include <Jolt/Renderer/DebugRendererSimple.h>
 
-class GlobalAppData;
+struct GlobalAppData;
 
 namespace Physics {
 

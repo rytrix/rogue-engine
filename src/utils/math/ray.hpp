@@ -22,8 +22,8 @@ private:
     glm::vec3 inv_direction {};
 };
 
-[[nodiscard]] Utils::Ray ray_from_mouse(GlobalAppData* data);
-[[nodiscard]] Utils::Ray ray_from_center(GlobalAppData* data);
+[[nodiscard]] Utils::Ray ray_from_mouse();
+[[nodiscard]] Utils::Ray ray_from_center();
 
 struct RayRingResult {
     glm::vec3 hit;

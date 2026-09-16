@@ -1,5 +1,7 @@
 #include "transform.hpp"
 
+namespace Utils {
+
 void Transform::set_position(const glm::vec3& position)
 {
     m_position = position;
@@ -77,3 +79,5 @@ void Transform::set_model(const glm::mat4& model)
     m_model_matrix = model;
     needs_update = false;
 }
+
+} // namespace Utils

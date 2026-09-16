@@ -10,23 +10,25 @@
 #include "renderer/line_renderer.hpp"
 #include "renderer/text.hpp"
 
-#include "scene/components/entity_selector.hpp"
-#include "scene/components/gizmo.hpp"
+#include "scene/systems/entity_selector.hpp"
+#include "scene/systems/gizmo.hpp"
 
 struct GlobalAppData {
-    Renderer::Window m_window;
-    Renderer::Camera m_camera;
+    Renderer::Window* m_window;
+    Renderer::Camera* m_camera;
 
-    TextureCache m_texture_cache;
-    MeshCache m_mesh_cache;
+    TextureCache* m_texture_cache;
+    MeshCache* m_mesh_cache;
 
-    Renderer::DefaultTextures m_default_textures;
+    Renderer::DefaultTextures* m_default_textures;
 
-    Renderer::TextRenderer m_text_renderer;
-    Renderer::LineRenderer m_line_renderer;
+    Renderer::TextRenderer* m_text_renderer;
+    Renderer::LineRenderer* m_line_renderer;
 
-    EntitySelector m_entity_selector;
-    Gizmo m_gizmo;
+    EntitySelector* m_entity_selector;
+    Gizmo* m_gizmo;
 
     bool m_capture_mouse = true;
 };
+
+extern GlobalAppData* g_global_app_data;

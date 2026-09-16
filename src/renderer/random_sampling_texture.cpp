@@ -3,6 +3,8 @@
 #include "shader.hpp"
 #include "texture.hpp"
 
+#include "../app_data.hpp"
+
 #include <random>
 
 namespace Renderer {
@@ -30,9 +32,9 @@ namespace {
 
 } // Anonymous namespace
 
-RandomSamplingTexture RandomSamplingTexture::create(i32 window_size, i32 filter_size, i32 radius, TextureCache* cache)
+RandomSamplingTexture RandomSamplingTexture::create(i32 window_size, i32 filter_size, i32 radius)
 {
-    Handle handle = create_random_sampling_texture(window_size, filter_size, cache);
+    Handle handle = create_random_sampling_texture(window_size, filter_size);
     return { handle, window_size, filter_size, radius };
 }
 
@@ -44,11 +46,11 @@ RandomSamplingTexture::RandomSamplingTexture(Handle handle, i32 window_size, i32
 {
 }
 
-void RandomSamplingTexture::bind_uniforms(Shader& shader, const char* uniform_name, TextureCache* cache)
+void RandomSamplingTexture::bind_uniforms(Shader& shader, const char* uniform_name)
 {
     Utils::String buffer;
 
-    Renderer::Texture* texture = cache->get(m_handle);
+    Renderer::Texture* texture = g_global_app_data->m_texture_cache->get(m_handle);
     GLuint texture_unit = Renderer::Texture::get_texture_unit();
     texture->bind(texture_unit);
 
@@ -58,7 +60,7 @@ void RandomSamplingTexture::bind_uniforms(Shader& shader, const char* uniform_na
     shader.set_int(buffer.format("{}.radius", uniform_name).c_str(), m_radius);
 }
 
-Handle RandomSamplingTexture::create_random_sampling_texture(i32 window_size, int filter_size, TextureCache* cache)
+Handle RandomSamplingTexture::create_random_sampling_texture(i32 window_size, int filter_size)
 {
     Jitter jitter;
 
@@ -100,8 +102,8 @@ Handle RandomSamplingTexture::create_random_sampling_texture(i32 window_size, in
     subimage_info.type = GL_FLOAT;
     subimage_info.pixels = data.data();
 
-    Handle handle = cache->create(texture_info);
-    Texture* texture = cache->get(handle);
+    Handle handle = g_global_app_data->m_texture_cache->create(texture_info);
+    Texture* texture = g_global_app_data->m_texture_cache->get(handle);
     texture->sub_image(subimage_info);
 
     return handle;

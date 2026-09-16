@@ -2,7 +2,7 @@
 
 #include "../utils/string.hpp"
 
-class GlobalAppData;
+struct GlobalAppData;
 
 namespace Renderer {
 class Mesh;
@@ -42,7 +42,7 @@ struct ModelResult {
     Utils::String error;
 };
 
-ModelResult load_mesh(Mesh& mesh, const char* path, GlobalAppData* app_data, MeshLoaderFlags flags = MeshLoaderFlags::UploadTexturesToGPU | MeshLoaderFlags::StoreTextures);
+ModelResult load_mesh(Mesh& mesh, const char* path, MeshLoaderFlags flags = MeshLoaderFlags::UploadTexturesToGPU | MeshLoaderFlags::StoreTextures);
 
 } // namespace Renderer
 

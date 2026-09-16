@@ -1,11 +1,13 @@
 #pragma once
 
-#include "../physics_jolt/engine.hpp"
+// #include "../physics_jolt/engine.hpp"
+#include "../physics_box3d/engine.hpp"
+
 #include "../utils/deltatime.hpp"
 
 #include "renderer.hpp"
 
-class GlobalAppData;
+struct GlobalAppData;
 
 class Entity;
 class EntitySelector;
@@ -15,7 +17,7 @@ class Scene : public NoCopyNoMove {
     friend class EntitySelector;
 
 public:
-    explicit Scene(GlobalAppData* app_data);
+    Scene();
     ~Scene();
 
     void update();
@@ -59,13 +61,12 @@ public:
 
     entt::registry m_registry;
 
-    std::unique_ptr<Physics::System> m_physics_system = nullptr;
+    // std::unique_ptr<Physics::System> m_physics_system = nullptr;
+    std::unique_ptr<PhysicsBox3d::Engine> m_physics_engine = nullptr;
 
 private:
     void compile_shaders();
     void compile_pbr_shaders(const std::string& empty_defines, const std::string& bone_defines);
-
-    GlobalAppData* m_app_data;
 
     bool m_first_update = true;
 
@@ -98,7 +99,7 @@ private:
 
     Renderer::RandomSamplingTexture m_random_sampling_texture;
 
-    bool m_physics_needs_optimize = false;
+    // bool m_physics_needs_optimize = false;
 };
 
 template <typename T, typename... Args>
