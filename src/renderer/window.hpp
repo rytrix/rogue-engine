@@ -36,6 +36,7 @@ private:
 
     int m_width {};
     int m_height {};
+    bool m_relative_mode = false;
     SDL_GLContext m_context {};
     SDL_Window* m_window = nullptr;
     bool m_should_close = false;

@@ -130,20 +130,23 @@ void Window::process_input_internal()
             SDL_GetWindowSize(m_window, &m_width, &m_height);
         }
 
-        ImGui_ImplSDL3_ProcessEvent(&event);
-
-        ImGuiIO& io = ImGui::GetIO();
         bool consumed_by_imgui = false;
 
-        bool mouse_event = event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP || event.type == SDL_EVENT_MOUSE_WHEEL;
-        bool keyboard_event = event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP || event.type == SDL_EVENT_TEXT_INPUT;
+        if (!m_relative_mode) {
+            ImGui_ImplSDL3_ProcessEvent(&event);
 
-        if (io.WantCaptureMouse && mouse_event) {
-            consumed_by_imgui = true;
-        }
+            ImGuiIO& io = ImGui::GetIO();
 
-        if (io.WantCaptureKeyboard && keyboard_event) {
-            consumed_by_imgui = true;
+            bool mouse_event = event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP || event.type == SDL_EVENT_MOUSE_WHEEL;
+            bool keyboard_event = event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP || event.type == SDL_EVENT_TEXT_INPUT;
+
+            if (io.WantCaptureMouse && mouse_event) {
+                consumed_by_imgui = true;
+            }
+
+            if (io.WantCaptureKeyboard && keyboard_event) {
+                consumed_by_imgui = true;
+            }
         }
 
         if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE) {
@@ -190,6 +193,7 @@ void Window::set_relative_mode(bool value)
 {
     util_assert(initialized == true, "not initialized");
     SDL_SetWindowRelativeMouseMode(m_window, value);
+    m_relative_mode = value;
 }
 
 void Window::set_swap_interval(int value)
