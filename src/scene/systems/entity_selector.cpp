@@ -39,8 +39,8 @@ void EntitySelector::on_event(Event& event)
 
 void EntitySelector::update()
 {
-    if (!m_selected_entity.valid() && !g_global_app_data->m_capture_mouse) {
-        auto ray_result = m_scene->m_physics_engine->ray_cast(Utils::ray_from_mouse(), g_global_app_data->m_camera->get_far());
+    if (!m_selected_entity.valid() && !g_app_data->m_capture_mouse) {
+        auto ray_result = m_scene->m_physics_engine->ray_cast(Utils::ray_from_mouse(), g_app_data->m_camera->get_far());
         if (ray_result.has_value()) {
             auto body_id = ray_result.value();
             auto view = m_scene->m_registry.view<PhysicsBox3d::EntityInfo>();
@@ -54,7 +54,7 @@ void EntitySelector::update()
         m_hovered_entity = Entity(m_scene, entt::null);
     }
 
-    if (m_selected_entity.valid() && !g_global_app_data->m_capture_mouse) {
+    if (m_selected_entity.valid() && !g_app_data->m_capture_mouse) {
         // Expect physics to be off when an entity is selected, but if it gets set to on,
         // the user expects the physics state to remain consistant, so clicking while an entity
         // is selected will invalidate the previous physics state.
@@ -86,8 +86,8 @@ void EntitySelector::draw()
             }
         }
 
-        g_global_app_data->m_gizmo->m_transform = transform;
-        g_global_app_data->m_gizmo->update();
+        g_app_data->m_gizmo->m_transform = transform;
+        g_app_data->m_gizmo->update();
 
         if (selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
             auto& physics_info = selected_entity.get_component<PhysicsBox3d::EntityInfo>();
@@ -98,7 +98,7 @@ void EntitySelector::draw()
                 m_scene->m_physics_engine->set_body_transform(physics_info.m_id, pos, rot);
             }
         }
-        g_global_app_data->m_gizmo->draw();
+        g_app_data->m_gizmo->draw();
     }
 
     draw_selected_entity_imgui();
@@ -109,7 +109,7 @@ void EntitySelector::select_entity(Entity entity)
 {
     util_assert(entity.valid(), "Trying to select an invalid entity");
     m_selected_entity = entity;
-    g_global_app_data->m_gizmo->m_state = Gizmo::State::Translation;
+    g_app_data->m_gizmo->m_state = Gizmo::State::Translation;
 
     if (m_selected_entity.valid()) {
         m_prev_physics_state = m_scene->m_physics_on ? State::On : State::Off;
@@ -169,10 +169,7 @@ void EntitySelector::draw_selected_entity_imgui()
     components.spot_shadow = registry.try_get<Renderer::Light::Pbr::SpotShadow>(entity_id);
 
     ImGui::Begin("Selected Entity");
-    // if (!m_imgui_first_time.contains(name)) {
-    //     ImGui::SetNextWindowSize(ImVec2(800, 600));
-    //     m_imgui_first_time.insert(name);
-    // }
+
     if (m_imgui_first_time) {
         ImGui::SetNextWindowSize(ImVec2(800, 600));
         m_imgui_first_time = false;
@@ -185,7 +182,7 @@ void EntitySelector::draw_selected_entity_imgui()
     draw_add_remove_component_imgui(components);
 
     if (ImGui::Button("Deselect Entity")) {
-        g_global_app_data->m_entity_selector->deselect_entity();
+        g_app_data->m_entity_selector->deselect_entity();
         goto imgui_end_label;
     }
 
@@ -270,7 +267,7 @@ void EntitySelector::draw_selected_entity_imgui()
             }
 
             if (ImGui::Button("Recreate static body")) {
-                scene->m_physics_engine->remove_body(physics_info);
+                scene->m_physics_engine->remove_body(physics_info.m_id);
 
                 // TODO: do I want this to just be my entity function? mainly for safety..
                 physics_info = scene->m_physics_engine->create_mesh_body(Entity(scene, entity_id));
@@ -375,6 +372,9 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
             if (ImGui::MenuItem("Convex Hull Shape")) {
                 Entity::add_convex_hull_body(components.entity);
             }
+            if (ImGui::MenuItem("Box Hull Shape")) {
+                Entity::add_box_hull_body(components.entity);
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Add Light")) {
@@ -423,15 +423,19 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
                 components.entity.remove_component<Renderer::AnimationData>();
             }
             components.scene->m_mesh_instance_draw_cache_needs_update = true;
+            components.mesh = nullptr;
+            components.animation_data = nullptr;
         }
         if (components.physics_info != nullptr && components.physics_info->m_type == PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Static Body")) {
-            components.scene->m_physics_engine->remove_body(*components.physics_info);
+            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
             components.entity.remove_component<PhysicsBox3d::EntityInfo>();
+            components.physics_info = nullptr;
             // components.scene->m_physics_needs_optimize = true;
         }
         if (components.physics_info != nullptr && components.physics_info->m_type != PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Dynamic Body")) {
-            components.scene->m_physics_engine->remove_body(*components.physics_info);
+            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
             components.entity.remove_component<PhysicsBox3d::EntityInfo>();
+            components.physics_info = nullptr;
             // components.scene->m_physics_needs_optimize = true;
         }
         bool has_light = components.directional != nullptr || components.point != nullptr || components.spot != nullptr;
@@ -440,34 +444,43 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
                 components.entity.remove_component<Renderer::Light::Pbr::Directional>();
                 if (components.directional_shadow != nullptr) {
                     components.entity.remove_component<Renderer::Light::Pbr::DirectionalShadow>();
+                    components.directional_shadow = nullptr;
                 }
                 components.scene->m_shaders_need_update = true;
+                components.directional = nullptr;
             }
             if (components.directional_shadow != nullptr && ImGui::MenuItem("Remove Directional Light Shadow")) {
                 components.entity.remove_component<Renderer::Light::Pbr::DirectionalShadow>();
                 components.scene->m_shaders_need_update = true;
+                components.directional_shadow = nullptr;
             }
             if (components.point != nullptr && ImGui::MenuItem("Remove Point Light")) {
                 components.entity.remove_component<Renderer::Light::Pbr::Point>();
                 if (components.point_shadow != nullptr) {
                     components.entity.remove_component<Renderer::Light::Pbr::PointShadow>();
+                    components.point_shadow = nullptr;
                 }
                 components.scene->m_shaders_need_update = true;
+                components.point = nullptr;
             }
             if (components.point_shadow != nullptr && ImGui::MenuItem("Remove Point Light Shadow")) {
                 components.entity.remove_component<Renderer::Light::Pbr::PointShadow>();
                 components.scene->m_shaders_need_update = true;
+                components.point_shadow = nullptr;
             }
             if (components.spot != nullptr && ImGui::MenuItem("Remove Spot Light")) {
                 components.entity.remove_component<Renderer::Light::Pbr::Spot>();
                 if (components.spot_shadow != nullptr) {
                     components.entity.remove_component<Renderer::Light::Pbr::SpotShadow>();
+                    components.spot_shadow = nullptr;
                 }
                 components.scene->m_shaders_need_update = true;
+                components.spot = nullptr;
             }
             if (components.spot_shadow != nullptr && ImGui::MenuItem("Remove Spot Light Shadow")) {
                 components.entity.remove_component<Renderer::Light::Pbr::SpotShadow>();
                 components.scene->m_shaders_need_update = true;
+                components.spot_shadow = nullptr;
             }
             ImGui::EndMenu();
         }
