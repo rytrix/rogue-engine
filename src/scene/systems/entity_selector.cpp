@@ -137,7 +137,6 @@ void EntitySelector::draw_selected_entity_imgui()
     auto entity_id = m_selected_entity.get_id();
     auto& registry = m_selected_entity.get_registry();
     auto* scene = m_selected_entity.get_scene();
-    auto* physics_engine = scene->m_physics_engine.get();
 
     components.entity = m_selected_entity;
     components.scene = scene;
@@ -271,7 +270,7 @@ void EntitySelector::draw_selected_entity_imgui()
             }
 
             if (ImGui::Button("Recreate static body")) {
-                scene->m_physics_engine->remove_body(body_id);
+                scene->m_physics_engine->remove_body(physics_info);
 
                 // TODO: do I want this to just be my entity function? mainly for safety..
                 physics_info = scene->m_physics_engine->create_mesh_body(Entity(scene, entity_id));
@@ -426,12 +425,12 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
             components.scene->m_mesh_instance_draw_cache_needs_update = true;
         }
         if (components.physics_info != nullptr && components.physics_info->m_type == PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Static Body")) {
-            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
+            components.scene->m_physics_engine->remove_body(*components.physics_info);
             components.entity.remove_component<PhysicsBox3d::EntityInfo>();
             // components.scene->m_physics_needs_optimize = true;
         }
         if (components.physics_info != nullptr && components.physics_info->m_type != PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Dynamic Body")) {
-            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
+            components.scene->m_physics_engine->remove_body(*components.physics_info);
             components.entity.remove_component<PhysicsBox3d::EntityInfo>();
             // components.scene->m_physics_needs_optimize = true;
         }

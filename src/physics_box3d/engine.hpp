@@ -40,7 +40,7 @@ public:
     [[nodiscard]] glm::quat get_body_rot(b3BodyId body);
 
     [[nodiscard]] b3BodyId add_body(const b3BodyDef* body);
-    void remove_body(const b3BodyId body);
+    void remove_body(b3BodyId body);
 
     std::optional<b3BodyId> ray_cast(Utils::Ray ray, float max_distance);
  

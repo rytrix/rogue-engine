@@ -53,6 +53,27 @@ namespace {
         }
     }
 
+    struct Deleter {
+        Deleter(const std::function<void(void* user_data)>& delete_fn, void* user_data)
+            : m_fn(delete_fn)
+            , m_user_data(user_data)
+        {
+        }
+        ~Deleter()
+        {
+            m_fn(m_user_data);
+        }
+
+        Deleter(const Deleter&) = delete;
+        Deleter operator=(Deleter&) = delete;
+        Deleter(Deleter&& other) = delete;
+        Deleter& operator=(Deleter&& other) = delete;
+
+    private:
+        std::function<void(void* user_data)> m_fn;
+        void* m_user_data;
+    };
+
 } // anonymous namespace
 
 Engine::Engine(Scene* scene)
@@ -120,7 +141,7 @@ b3BodyId Engine::add_body(const b3BodyDef* body)
     return b3CreateBody(m_world_id, body);
 }
 
-void Engine::remove_body(const b3BodyId body)
+void Engine::remove_body(b3BodyId body)
 {
     b3DestroyBody(body);
 }
@@ -161,7 +182,10 @@ EntityInfo Engine::create_mesh_body(Entity entity)
     auto body_id = add_body(&body_def);
 
     b3ShapeId shape_id = b3CreateMeshShape(body_id, &shape_def, mesh_data, { 1.0F, 1.0F, 1.0F });
-    b3DestroyMesh(mesh_data);
+    if (entity.has_component<Deleter>()) {
+        entity.remove_component<Deleter>();
+    }
+    entity.add_component<Deleter>([](void* user_data) { b3DestroyMesh((b3MeshData*)user_data); }, mesh_data);
 
     EntityInfo info {};
     info.m_motion_type = motion_type(body_def.type);
