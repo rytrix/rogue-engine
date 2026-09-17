@@ -11,6 +11,10 @@ namespace Renderer::Light::Pbr {
     class Spot;
 }
 
+namespace PhysicsBox3d {
+    struct BoxHullInfo;
+}
+
 class Entity {
 public:
     Entity() = default;
@@ -39,14 +43,25 @@ public:
     static void add_transform(Entity entity, const Utils::Transform& transform);
     static void add_mesh(Entity entity, const char* path);
     static void add_static_body(Entity entity);
-    // static void add_dynamic_body(Entity entity, JPH::Ref<JPH::Shape> shape);
     static void add_convex_hull_body(Entity entity);
+    static void add_box_hull_body(Entity entity, const PhysicsBox3d::BoxHullInfo& info);
     static void add_pbr_directional_light(Entity entity, Renderer::Light::Pbr::Directional& info);
     static void add_pbr_directional_light_shadow(Entity entity);
     static void add_pbr_point_light(Entity entity, Renderer::Light::Pbr::Point& info);
     static void add_pbr_point_light_shadow(Entity entity);
     static void add_pbr_spot_light(Entity entity, Renderer::Light::Pbr::Spot& info);
     static void add_pbr_spot_light_shadow(Entity entity);
+
+    static void remove_name(Entity entity);
+    static void remove_transform(Entity entity);
+    static void remove_mesh(Entity entity);
+    static void remove_physics_body(Entity entity);
+    static void remove_pbr_directional_light(Entity entity);
+    static void remove_pbr_directional_light_shadow(Entity entity);
+    static void remove_pbr_point_light(Entity entity);
+    static void remove_pbr_point_light_shadow(Entity entity);
+    static void remove_pbr_spot_light(Entity entity);
+    static void remove_pbr_spot_light_shadow(Entity entity);
 
     static void to_json(nlohmann::json& json, Entity entity);
     static void from_json(nlohmann::json& json, Entity entity);

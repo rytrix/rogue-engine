@@ -3,8 +3,13 @@
 namespace Utils {
 
 struct AABB {
-    glm::vec3 min;
-    glm::vec3 max;
+    glm::vec3 min { std::numeric_limits<float>::max() };
+    glm::vec3 max { -std::numeric_limits<float>::max() };
+
+    // Helper function for model loader
+    // Replaces min and max coordinates with
+    // new min/max values
+    void update_points(const glm::vec3& point);
 
     [[nodiscard]] AABB transform(const glm::mat4& transform) const;
     [[nodiscard]] bool intersection(const glm::vec3& position) const;

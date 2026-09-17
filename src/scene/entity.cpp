@@ -40,14 +40,24 @@ void Entity::add_name(Entity entity, const char* name)
     entity.add_component<Utils::String>(name);
 }
 
+void Entity::remove_name(Entity entity)
+{
+    entity.remove_component<Utils::String>();
+}
+
 void Entity::add_transform(Entity entity, const Utils::Transform& transform)
 {
     entity.add_component<Utils::Transform>(transform);
 }
 
+void Entity::remove_transform(Entity entity)
+{
+    entity.remove_component<Utils::Transform>();
+}
+
 void Entity::add_mesh(Entity entity, const char* path)
 {
-    auto* mesh_cache = g_global_app_data->m_mesh_cache;
+    auto* mesh_cache = g_app_data->m_mesh_cache;
     auto handle = mesh_cache->get_or_create(path, path);
     auto* mesh = mesh_cache->get(handle);
     auto result = mesh->get_result();
@@ -68,44 +78,55 @@ void Entity::add_mesh(Entity entity, const char* path)
     entity.get_scene()->m_mesh_instance_draw_cache_needs_update = true;
 }
 
+void Entity::remove_mesh(Entity entity)
+{
+    entity.remove_component<Renderer::Mesh*>();
+    entity.remove_component<Renderer::AnimationData>();
+}
+
 void Entity::add_static_body(Entity entity)
 {
     util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
 
-    // auto physics_info = PhysicsBox::create_static_body(entity);
-    // entity.add_component<Physics::PhysicsInfo>(physics_info);
-    // entity.get_scene()->m_physics_needs_optimize = true;
-
     auto entity_info = entity.get_scene()->m_physics_engine->create_mesh_body(entity);
-    if (B3_IS_NULL(entity_info.m_id)) {
+    if (!entity_info.m_valid) {
         LOG_ERROR("Failed to create mesh body");
         return;
     }
     entity.add_component<PhysicsBox3d::EntityInfo>(entity_info);
 }
 
-// void Entity::add_dynamic_body(Entity entity, JPH::Ref<JPH::Shape> shape)
-// {
-//     util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
-//     auto physics_info = Physics::create_dynamic_body(entity, shape);
-//     entity.add_component<Physics::PhysicsInfo>(physics_info);
-//     // entity.get_scene()->m_physics_needs_optimize = true;
-// }
-
 void Entity::add_convex_hull_body(Entity entity)
 {
     util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
 
-    // auto physics_info = Physics::create_convex_hull(entity);
-    // entity.add_component<Physics::PhysicsInfo>(physics_info);
-    // entity.get_scene()->m_physics_needs_optimize = true;
-
     auto entity_info = entity.get_scene()->m_physics_engine->create_hull_body(entity);
-    if (B3_IS_NULL(entity_info.m_id)) {
+    if (!entity_info.m_valid) {
         LOG_ERROR("Failed to create convex hull body");
         return;
     }
     entity.add_component<PhysicsBox3d::EntityInfo>(entity_info);
+}
+
+void Entity::add_box_hull_body(Entity entity, const PhysicsBox3d::BoxHullInfo& info)
+{
+    util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
+
+    auto entity_info = entity.get_scene()->m_physics_engine->create_box_body(entity, info);
+    if (!entity_info.m_valid) {
+        LOG_ERROR("Failed to create box hull body");
+        return;
+    }
+    entity.add_component<PhysicsBox3d::EntityInfo>(entity_info);
+}
+
+void Entity::remove_physics_body(Entity entity)
+{
+    if (entity.has_component<PhysicsBox3d::EntityInfo>()) {
+        auto physics_info = entity.get_component<PhysicsBox3d::EntityInfo>();
+        entity.get_scene()->m_physics_engine->remove_body(physics_info.m_id);
+        entity.remove_component<PhysicsBox3d::EntityInfo>();
+    }
 }
 
 void Entity::add_pbr_directional_light(Entity entity, Renderer::Light::Pbr::Directional& info)
@@ -117,6 +138,19 @@ void Entity::add_pbr_directional_light(Entity entity, Renderer::Light::Pbr::Dire
 void Entity::add_pbr_directional_light_shadow(Entity entity)
 {
     entity.add_component<Renderer::Light::Pbr::DirectionalShadow>().init();
+    entity.get_scene()->m_shaders_need_update = true;
+}
+
+void Entity::remove_pbr_directional_light(Entity entity)
+{
+    entity.remove_component<Renderer::Light::Pbr::Directional>();
+    entity.remove_component<Renderer::Light::Pbr::DirectionalShadow>();
+    entity.get_scene()->m_shaders_need_update = true;
+}
+
+void Entity::remove_pbr_directional_light_shadow(Entity entity)
+{
+    entity.remove_component<Renderer::Light::Pbr::DirectionalShadow>();
     entity.get_scene()->m_shaders_need_update = true;
 }
 
@@ -132,6 +166,19 @@ void Entity::add_pbr_point_light_shadow(Entity entity)
     entity.get_scene()->m_shaders_need_update = true;
 }
 
+void Entity::remove_pbr_point_light(Entity entity)
+{
+    entity.remove_component<Renderer::Light::Pbr::Point>();
+    entity.remove_component<Renderer::Light::Pbr::PointShadow>();
+    entity.get_scene()->m_shaders_need_update = true;
+}
+
+void Entity::remove_pbr_point_light_shadow(Entity entity)
+{
+    entity.remove_component<Renderer::Light::Pbr::PointShadow>();
+    entity.get_scene()->m_shaders_need_update = true;
+}
+
 void Entity::add_pbr_spot_light(Entity entity, Renderer::Light::Pbr::Spot& info)
 {
     info.calculate_cutoffs();
@@ -142,6 +189,19 @@ void Entity::add_pbr_spot_light(Entity entity, Renderer::Light::Pbr::Spot& info)
 void Entity::add_pbr_spot_light_shadow(Entity entity)
 {
     entity.add_component<Renderer::Light::Pbr::SpotShadow>().init();
+    entity.get_scene()->m_shaders_need_update = true;
+}
+
+void Entity::remove_pbr_spot_light(Entity entity)
+{
+    entity.remove_component<Renderer::Light::Pbr::Spot>();
+    entity.remove_component<Renderer::Light::Pbr::SpotShadow>();
+    entity.get_scene()->m_shaders_need_update = true;
+}
+
+void Entity::remove_pbr_spot_light_shadow(Entity entity)
+{
+    entity.remove_component<Renderer::Light::Pbr::PointShadow>();
     entity.get_scene()->m_shaders_need_update = true;
 }
 

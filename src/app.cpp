@@ -2,49 +2,50 @@
 
 #include "renderer/text.hpp"
 
+#include "utils/color.hpp"
 #include "utils/file.hpp"
 #include "utils/math/ray.hpp"
 
-GlobalAppData* g_global_app_data = nullptr;
+GlobalAppData* g_app_data = nullptr;
 
 void App::construct_globals()
 {
-    g_global_app_data = construct<GlobalAppData>();
+    g_app_data = construct<GlobalAppData>();
 
-    g_global_app_data->m_window = construct<Renderer::Window>("Test Window", 800, 600);
-    g_global_app_data->m_window->set_relative_mode(g_global_app_data->m_capture_mouse);
-    g_global_app_data->m_window->set_capture_mouse(g_global_app_data->m_capture_mouse);
+    g_app_data->m_window = construct<Renderer::Window>("Test Window", 800, 600);
+    g_app_data->m_window->set_relative_mode(g_app_data->m_capture_mouse);
+    g_app_data->m_window->set_capture_mouse(g_app_data->m_capture_mouse);
 
-    g_global_app_data->m_camera = construct<Renderer::Camera>(90.0F, 1.0F, 500.0F, g_global_app_data->m_window->get_aspect_ratio(), glm::vec3 { -2.0F, 1.5F, 4.0F });
-    g_global_app_data->m_camera->set_speed(10.0F);
+    g_app_data->m_camera = construct<Renderer::Camera>(90.0F, 1.0F, 500.0F, g_app_data->m_window->get_aspect_ratio(), glm::vec3 { -2.0F, 1.5F, 4.0F });
+    g_app_data->m_camera->set_speed(10.0F);
 
-    g_global_app_data->m_mesh_cache = construct<MeshCache>(100);
-    g_global_app_data->m_texture_cache = construct<TextureCache>(500);
+    g_app_data->m_mesh_cache = construct<MeshCache>(100);
+    g_app_data->m_texture_cache = construct<TextureCache>(500);
 
-    g_global_app_data->m_default_textures = construct<Renderer::DefaultTextures>(g_global_app_data->m_texture_cache);
+    g_app_data->m_default_textures = construct<Renderer::DefaultTextures>(g_app_data->m_texture_cache);
 
-    g_global_app_data->m_text_renderer = construct<Renderer::TextRenderer>("res/fonts/AdwaitaSans-Regular.ttf", 24);
-    g_global_app_data->m_text_renderer->update_view(g_global_app_data->m_window->get_width(), g_global_app_data->m_window->get_height());
+    g_app_data->m_text_renderer = construct<Renderer::TextRenderer>("res/fonts/AdwaitaSans-Regular.ttf", 24);
+    g_app_data->m_text_renderer->update_view(g_app_data->m_window->get_width(), g_app_data->m_window->get_height());
 
     m_scene = new Scene();
 
-    g_global_app_data->m_line_renderer = construct<Renderer::LineRenderer>(10000);
+    g_app_data->m_line_renderer = construct<Renderer::LineRenderer>(10000);
 
-    g_global_app_data->m_gizmo = construct<Gizmo>();
-    g_global_app_data->m_entity_selector = construct<EntitySelector>(m_scene);
+    g_app_data->m_gizmo = construct<Gizmo>();
+    g_app_data->m_entity_selector = construct<EntitySelector>(m_scene);
 }
 
 void App::destroy_globals()
 {
-    std::destroy_at(g_global_app_data->m_entity_selector);
-    std::destroy_at(g_global_app_data->m_gizmo);
-    std::destroy_at(g_global_app_data->m_line_renderer);
-    std::destroy_at(g_global_app_data->m_text_renderer);
-    std::destroy_at(g_global_app_data->m_default_textures);
-    std::destroy_at(g_global_app_data->m_texture_cache);
-    std::destroy_at(g_global_app_data->m_mesh_cache);
-    std::destroy_at(g_global_app_data->m_camera);
-    std::destroy_at(g_global_app_data->m_window);
+    std::destroy_at(g_app_data->m_entity_selector);
+    std::destroy_at(g_app_data->m_gizmo);
+    std::destroy_at(g_app_data->m_line_renderer);
+    std::destroy_at(g_app_data->m_text_renderer);
+    std::destroy_at(g_app_data->m_default_textures);
+    std::destroy_at(g_app_data->m_texture_cache);
+    std::destroy_at(g_app_data->m_mesh_cache);
+    std::destroy_at(g_app_data->m_camera);
+    std::destroy_at(g_app_data->m_window);
 }
 
 App::App()
@@ -52,7 +53,7 @@ App::App()
     construct_globals();
 
     m_scene->m_name = "default_scene";
-    
+
     Renderer::SkyboxInfo skybox_info {};
     skybox_info.file = "res/skyboxes/Cubemap_Sky_14-512x512.png";
     m_scene->add_component<Renderer::Skybox>(skybox_info);
@@ -64,28 +65,28 @@ App::App()
         m_scene->from_json(json_scene);
     }
 
-    g_global_app_data->m_window->process_input_callback([&](SDL_Event& event) {
+    g_app_data->m_window->process_input_callback([&](SDL_Event& event) {
         if (event.type == SDL_EVENT_WINDOW_RESIZED) {
-            g_global_app_data->m_camera->update_aspect(g_global_app_data->m_window->get_aspect_ratio());
+            g_app_data->m_camera->update_aspect(g_app_data->m_window->get_aspect_ratio());
             m_scene->update();
-            g_global_app_data->m_text_renderer->update_view((f32)g_global_app_data->m_window->get_width(), (f32)g_global_app_data->m_window->get_height());
+            g_app_data->m_text_renderer->update_view((f32)g_app_data->m_window->get_width(), (f32)g_app_data->m_window->get_height());
         }
         if (event.type == SDL_EVENT_MOUSE_MOTION) {
-            if (g_global_app_data->m_capture_mouse) {
-                g_global_app_data->m_camera->rotate(event.motion.xrel, -event.motion.yrel);
+            if (g_app_data->m_capture_mouse) {
+                g_app_data->m_camera->rotate(event.motion.xrel, -event.motion.yrel);
             }
         }
         if (event.type == SDL_EVENT_KEY_DOWN) {
             if (event.key.key == SDLK_ESCAPE) {
-                g_global_app_data->m_capture_mouse = !g_global_app_data->m_capture_mouse;
-                g_global_app_data->m_window->set_relative_mode(g_global_app_data->m_capture_mouse);
-                g_global_app_data->m_window->set_capture_mouse(g_global_app_data->m_capture_mouse);
+                g_app_data->m_capture_mouse = !g_app_data->m_capture_mouse;
+                g_app_data->m_window->set_relative_mode(g_app_data->m_capture_mouse);
+                g_app_data->m_window->set_capture_mouse(g_app_data->m_capture_mouse);
             }
             if (event.key.key == SDLK_E) {
                 m_scene->m_physics_on = !m_scene->m_physics_on;
             }
             if (event.key.key == SDLK_Q) {
-                g_global_app_data->m_window->set_should_close();
+                g_app_data->m_window->set_should_close();
             }
         }
 
@@ -94,8 +95,8 @@ App::App()
         engine_event.m_sdl_event = event;
         engine_event.m_consumed = false;
 
-        g_global_app_data->m_gizmo->on_event(engine_event);
-        g_global_app_data->m_entity_selector->on_event(engine_event);
+        g_app_data->m_gizmo->on_event(engine_event);
+        g_app_data->m_entity_selector->on_event(engine_event);
     });
 
     m_scene->update();
@@ -133,7 +134,7 @@ void App::spawn_300_cubes()
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution dist_x(-15.0f, 15.0f);
-    std::uniform_real_distribution dist_y(1.0f, 20.0f);
+    std::uniform_real_distribution dist_y(15.0f, 40.0f);
     std::uniform_real_distribution dist_z(-15.0f, 15.0f);
 
     for (u32 i = 0; i < 300; i++) {
@@ -149,51 +150,60 @@ void App::spawn_300_cubes()
 void App::run()
 {
     auto scancodes = [&]() {
-        if (g_global_app_data->m_capture_mouse) {
+        if (g_app_data->m_capture_mouse) {
             const bool* keys = SDL_GetKeyboardState(nullptr);
             float delta_time = m_scene->get_clock().delta_time<float>();
             using Dir = Renderer::Camera::Movement;
             if (keys[SDL_SCANCODE_W]) {
-                g_global_app_data->m_camera->move(Dir::Forward, delta_time);
+                g_app_data->m_camera->move(Dir::Forward, delta_time);
             }
             if (keys[SDL_SCANCODE_S]) {
-                g_global_app_data->m_camera->move(Dir::Backward, delta_time);
+                g_app_data->m_camera->move(Dir::Backward, delta_time);
             }
             if (keys[SDL_SCANCODE_A]) {
-                g_global_app_data->m_camera->move(Dir::Left, delta_time);
+                g_app_data->m_camera->move(Dir::Left, delta_time);
             }
             if (keys[SDL_SCANCODE_D]) {
-                g_global_app_data->m_camera->move(Dir::Right, delta_time);
+                g_app_data->m_camera->move(Dir::Right, delta_time);
             }
             if (keys[SDL_SCANCODE_SPACE]) {
-                g_global_app_data->m_camera->move(Dir::Up, delta_time);
+                g_app_data->m_camera->move(Dir::Up, delta_time);
             }
             if (keys[SDL_SCANCODE_LSHIFT]) {
-                g_global_app_data->m_camera->move(Dir::Down, delta_time);
+                g_app_data->m_camera->move(Dir::Down, delta_time);
             }
         }
     };
 
-    g_global_app_data->m_window->loop([&]() {
+    g_app_data->m_window->loop([&]() {
         fps_counter();
 
         scancodes();
 
         m_scene->update();
-        g_global_app_data->m_entity_selector->update();
+        g_app_data->m_entity_selector->update();
 
         m_scene->draw();
-        g_global_app_data->m_entity_selector->draw();
+        g_app_data->m_entity_selector->draw();
 
         // TODO:
         // if (m_draw_bodies) {
         //     m_scene->m_physics_system->draw_bodies();
         // }
+        if (m_draw_bodies) {
+            auto entity = m_scene->get_entity_by_name("Defeated");
+            auto* mesh = entity.get_component<Renderer::Mesh*>();
+            auto& transform = entity.get_component<Utils::Transform>();
 
-        g_global_app_data->m_line_renderer->draw(*g_global_app_data->m_camera);
+            g_app_data->m_line_renderer->add_aabb(
+                mesh->m_aabb.transform(transform.get_model_matrix()),
+                Utils::Color::pack(Utils::Color::Green));
+        }
 
-        g_global_app_data->m_text_renderer->draw_text(10,
-            g_global_app_data->m_window->get_height() - g_global_app_data->m_text_renderer->get_max_pixel_height(),
+        g_app_data->m_line_renderer->draw(*g_app_data->m_camera);
+
+        g_app_data->m_text_renderer->draw_text(10,
+            g_app_data->m_window->get_height() - g_app_data->m_text_renderer->get_max_pixel_height(),
             Utils::format("Framerate {}", m_fps).c_str(), glm::vec3 { 1.0F });
 
         const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
@@ -210,9 +220,9 @@ void App::run()
         if (ImGui::Checkbox("Toggle vsync", &m_vsync)) {
             LOG_INFO(std::format("Setting swap interval to {}", m_vsync));
             if (m_vsync) {
-                g_global_app_data->m_window->set_swap_interval(1);
+                g_app_data->m_window->set_swap_interval(1);
             } else {
-                g_global_app_data->m_window->set_swap_interval(0);
+                g_app_data->m_window->set_swap_interval(0);
             }
         }
 
@@ -223,6 +233,8 @@ void App::run()
         if (ImGui::Button("Spawn 300 cubes")) {
             spawn_300_cubes();
         }
+        
+        ImGui::Checkbox("Enable entity selector", &g_app_data->m_entity_selector->m_hover_enabled);
 
         if (ImGui::CollapsingHeader(m_scene->m_name.c_str())) {
             m_scene->draw_debug_imgui();

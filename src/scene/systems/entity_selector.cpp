@@ -5,6 +5,8 @@
 
 #include "../../app_data.hpp"
 
+#include "../../utils/color.hpp"
+
 EntitySelector::EntitySelector(Scene* scene)
     : m_scene(scene)
 {
@@ -30,7 +32,6 @@ void EntitySelector::on_event(Event& event)
         if (event.m_sdl_event.type == SDL_EVENT_KEY_DOWN) {
             if (event.m_sdl_event.key.key == SDLK_ESCAPE) {
                 deselect_entity();
-                m_model_prompt.valid = false;
                 event.m_consumed = true;
             }
         }
@@ -39,7 +40,7 @@ void EntitySelector::on_event(Event& event)
 
 void EntitySelector::update()
 {
-    if (!m_selected_entity.valid() && !g_app_data->m_capture_mouse) {
+    if (m_hover_enabled && !m_selected_entity.valid() && !g_app_data->m_capture_mouse) {
         auto ray_result = m_scene->m_physics_engine->ray_cast(Utils::ray_from_mouse(), g_app_data->m_camera->get_far());
         if (ray_result.has_value()) {
             auto body_id = ray_result.value();
@@ -75,34 +76,14 @@ void EntitySelector::draw()
     if (selected_entity.valid() && selected_entity.has_component<Utils::Transform>()) {
         auto* transform = &selected_entity.get_component<Utils::Transform>();
 
-        if (selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
-            auto& physics_info = selected_entity.get_component<PhysicsBox3d::EntityInfo>();
-            if (physics_info.m_motion_type != PhysicsBox3d::MotionType::Static) {
-                // check if this is still right...
-                glm::vec3 pos = m_scene->m_physics_engine->get_body_pos(physics_info.m_id);
-                glm::quat rot = m_scene->m_physics_engine->get_body_rot(physics_info.m_id);
-                transform->set_position(pos);
-                transform->set_rotation(rot);
-            }
-        }
-
         g_app_data->m_gizmo->m_transform = transform;
         g_app_data->m_gizmo->update();
-
-        if (selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
-            auto& physics_info = selected_entity.get_component<PhysicsBox3d::EntityInfo>();
-
-            if (physics_info.m_motion_type != PhysicsBox3d::MotionType::Static) {
-                glm::vec3 pos = m_scene->m_physics_engine->get_body_pos(physics_info.m_id);
-                glm::quat rot = m_scene->m_physics_engine->get_body_rot(physics_info.m_id);
-                m_scene->m_physics_engine->set_body_transform(physics_info.m_id, pos, rot);
-            }
-        }
         g_app_data->m_gizmo->draw();
     }
 
     draw_selected_entity_imgui();
     draw_model_prompt_window();
+    draw_box_hull_prompt_window();
 }
 
 void EntitySelector::select_entity(Entity entity)
@@ -132,15 +113,6 @@ void EntitySelector::draw_selected_entity_imgui()
         return;
     }
 
-    EntityComponents components {};
-
-    auto entity_id = m_selected_entity.get_id();
-    auto& registry = m_selected_entity.get_registry();
-    auto* scene = m_selected_entity.get_scene();
-
-    components.entity = m_selected_entity;
-    components.scene = scene;
-
     constexpr float MAX_TRANSFORM = 64.0F;
     constexpr float MIN_TRANSFORM = -64.0F;
 
@@ -150,23 +122,10 @@ void EntitySelector::draw_selected_entity_imgui()
     constexpr float MAX_COLOR = 3000.0F;
     constexpr float MIN_COLOR = 0.0F;
 
-    Utils::String no_name("no_name");
-    Utils::String* name_check = registry.try_get<Utils::String>(entity_id);
-    components.name = name_check == nullptr ? &no_name : name_check;
-
-    components.mesh = registry.try_get<Renderer::Mesh*>(entity_id);
-    components.animation_data = registry.try_get<Renderer::AnimationData>(entity_id);
-    components.transform = registry.try_get<Utils::Transform>(entity_id);
-
-    components.physics_info = registry.try_get<PhysicsBox3d::EntityInfo>(entity_id);
-
-    components.point = registry.try_get<Renderer::Light::Pbr::Point>(entity_id);
-    components.directional = registry.try_get<Renderer::Light::Pbr::Directional>(entity_id);
-    components.spot = registry.try_get<Renderer::Light::Pbr::Spot>(entity_id);
-
-    components.point_shadow = registry.try_get<Renderer::Light::Pbr::PointShadow>(entity_id);
-    components.directional_shadow = registry.try_get<Renderer::Light::Pbr::DirectionalShadow>(entity_id);
-    components.spot_shadow = registry.try_get<Renderer::Light::Pbr::SpotShadow>(entity_id);
+    if (!m_selected_entity.has_component<Utils::String>()) {
+        Entity::add_name(m_selected_entity, "no name");
+    }
+    Utils::String& name = m_selected_entity.get_component<Utils::String>();
 
     ImGui::Begin("Selected Entity");
 
@@ -175,20 +134,19 @@ void EntitySelector::draw_selected_entity_imgui()
         m_imgui_first_time = false;
     }
 
-    if (ImGui::InputText("##EntityNameInput", components.name->data(), components.name->capacity())) {
-        *components.name = Utils::String(components.name->c_str());
+    if (ImGui::InputText("##EntityNameInput", name.data(), name.capacity())) {
     }
 
-    draw_add_remove_component_imgui(components);
+    draw_add_remove_component_imgui();
 
     if (ImGui::Button("Deselect Entity")) {
         g_app_data->m_entity_selector->deselect_entity();
         goto imgui_end_label;
     }
 
-    if (components.mesh != nullptr && components.animation_data != nullptr) {
-        auto& mesh = *components.mesh;
-        auto& animation_data = *components.animation_data;
+    if (m_selected_entity.has_component<Renderer::Mesh*>() && m_selected_entity.has_component<Renderer::AnimationData>()) {
+        auto* mesh = m_selected_entity.get_component<Renderer::Mesh*>();
+        auto& animation_data = m_selected_entity.get_component<Renderer::AnimationData>();
 
         auto& animations = mesh->m_animations;
         i32 current_animation = static_cast<int>(animation_data.selected_animation);
@@ -198,7 +156,6 @@ void EntitySelector::draw_selected_entity_imgui()
             float total_animation_time = animations[j].get_total_animation_time();
             if ((int)j == current_animation) {
                 ImGui::Text("(Selected) Animation: %s, %f ticks", animations[j].m_name.c_str(), total_animation_time);
-
             } else {
                 ImGui::Text("Animation: %s, %f ticks", animations[j].m_name.c_str(), total_animation_time);
             }
@@ -211,7 +168,7 @@ void EntitySelector::draw_selected_entity_imgui()
             animation_data.second_animation = animation_data.selected_animation;
             animation_data.selected_animation = current_animation;
             animation_data.blend_factor = 0.0F;
-            scene->m_mesh_instance_draw_cache_needs_update = true;
+            m_selected_entity.get_scene()->m_mesh_instance_draw_cache_needs_update = true;
         }
 
         ImGui::Checkbox("Pause Animation", &animation_data.paused);
@@ -222,16 +179,16 @@ void EntitySelector::draw_selected_entity_imgui()
         }
     }
 
-    if (components.physics_info != nullptr) {
-        auto& physics_info = *components.physics_info;
+    if (m_selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
+        auto& physics_info = m_selected_entity.get_component<PhysicsBox3d::EntityInfo>();
         auto& body_id = physics_info.m_id;
         auto& motion_type = physics_info.m_motion_type;
+        auto* scene = m_selected_entity.get_scene();
 
         if (motion_type != PhysicsBox3d::MotionType::Static) {
             ImGui::Text("Physics");
             glm::vec3 pos = scene->m_physics_engine->get_body_pos(body_id);
             glm::quat rot = scene->m_physics_engine->get_body_rot(body_id);
-            // glm::vec3 cube_pos = Physics::vec3_to_vec3(body_interface->GetPosition(body_id));
             if (ImGui::DragFloat3("XYZ", &pos.x, 1.0F, MIN_TRANSFORM, MAX_TRANSFORM)) {
                 scene->m_physics_engine->set_body_transform(body_id, pos, rot);
             }
@@ -241,11 +198,11 @@ void EntitySelector::draw_selected_entity_imgui()
                 scene->m_physics_engine->set_body_transform(body_id, pos, glm::quat(glm::radians(euler_angles)));
             }
 
-            ImGui::Checkbox("Show Debug Physics Body Wireframe", &components.physics_info->m_should_debug_draw);
+            ImGui::Checkbox("Show Debug Physics Body Wireframe", &physics_info.m_should_debug_draw);
         } else {
             ImGui::Text("Physics - Static Object");
 
-            auto& transform = *components.transform;
+            auto& transform = m_selected_entity.get_component<Utils::Transform>();
             ImGui::Text("Transform");
             glm::vec3 transform_pos = transform.get_position();
             if (ImGui::DragFloat3("Position: XYZ", &transform_pos.x, 1.0F, MIN_TRANSFORM, MAX_TRANSFORM)) {
@@ -267,22 +224,14 @@ void EntitySelector::draw_selected_entity_imgui()
             }
 
             if (ImGui::Button("Recreate static body")) {
-                scene->m_physics_engine->remove_body(physics_info.m_id);
-
-                // TODO: do I want this to just be my entity function? mainly for safety..
-                physics_info = scene->m_physics_engine->create_mesh_body(Entity(scene, entity_id));
-
-                // // auto new_physics_info = physics_info.m_physics_fn(m_physics_system.get(), Entity(scene, entity));
-                // physics_info.m_id = new_physics_info.m_id;
-                // physics_info.m_motion_type = new_physics_info.m_motion_type;
-
-                // scene->m_physics_needs_optimize = true;
+                Entity::remove_physics_body(m_selected_entity);
+                Entity::add_static_body(m_selected_entity);
             }
         }
     }
 
-    if (components.transform != nullptr && components.physics_info == nullptr) {
-        auto& transform = *components.transform;
+    if (m_selected_entity.has_component<Utils::Transform>() && !m_selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
+        auto& transform = m_selected_entity.get_component<Utils::Transform>();
 
         ImGui::Text("Transform");
         glm::vec3 transform_pos = transform.get_position();
@@ -305,24 +254,24 @@ void EntitySelector::draw_selected_entity_imgui()
         }
     }
 
-    if (components.point != nullptr) {
-        auto& point = *components.point;
+    if (m_selected_entity.has_component<Renderer::Light::Pbr::Point>()) {
+        auto& point = m_selected_entity.get_component<Renderer::Light::Pbr::Point>();
 
         ImGui::Text("Point Light");
         ImGui::DragFloat3("XYZ", &point.position.x, 1.0F, MIN_TRANSFORM, MAX_TRANSFORM);
         ImGui::DragFloat3("RGB", &point.color.x, 10.0F, MIN_COLOR, MAX_COLOR);
     }
 
-    if (components.directional != nullptr) {
-        auto& directional = *components.directional;
+    if (m_selected_entity.has_component<Renderer::Light::Pbr::Directional>()) {
+        auto& directional = m_selected_entity.get_component<Renderer::Light::Pbr::Directional>();
 
         ImGui::Text("Directional Light");
         ImGui::DragFloat3("XYZ", &directional.direction.x, 1.0F, -1.0F, 1.0F);
         ImGui::DragFloat3("RGB", &directional.color.x, 10.0F, MIN_COLOR, MAX_COLOR);
     }
 
-    if (components.spot != nullptr) {
-        auto& spot = *components.spot;
+    if (m_selected_entity.has_component<Renderer::Light::Pbr::Spot>()) {
+        auto& spot = m_selected_entity.get_component<Renderer::Light::Pbr::Spot>();
 
         ImGui::Text("Spot Light");
         ImGui::DragFloat3("Position XYZ", &spot.position.x, 1.0F, MIN_TRANSFORM, MAX_TRANSFORM);
@@ -339,7 +288,7 @@ imgui_end_label:
     ImGui::End();
 }
 
-void EntitySelector::draw_add_remove_component_imgui(EntityComponents& components)
+void EntitySelector::draw_add_remove_component_imgui()
 {
     if (ImGui::Button("Add Component")) {
         ImGui::OpenPopup("Add Component Popup");
@@ -354,56 +303,74 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
         // }
         // if (ImGui::MenuItem("Add Transform")) {
         // }
-        if (components.mesh == nullptr && ImGui::MenuItem("Add Model")) {
+        if (!m_selected_entity.has_component<Renderer::Mesh*>() && ImGui::MenuItem("Add Model")) {
             m_model_prompt.valid = true;
             m_model_prompt.entity = m_selected_entity;
             Utils::String string;
             m_model_prompt.path = string;
         }
-        if (components.mesh != nullptr && components.physics_info == nullptr && ImGui::MenuItem("Add Static Body")) {
-            Entity::add_static_body(components.entity);
+
+        bool has_mesh_and_no_physics = m_selected_entity.has_component<Renderer::Mesh*>()
+            && !m_selected_entity.has_component<PhysicsBox3d::EntityInfo>();
+
+        if (has_mesh_and_no_physics && ImGui::MenuItem("Add Static Body")) {
+            Entity::add_static_body(m_selected_entity);
+            has_mesh_and_no_physics = false;
         }
-        if (components.mesh != nullptr && components.physics_info == nullptr && ImGui::BeginMenu("Add Dynamic Body")) {
-            // if (ImGui::MenuItem("Box Shape")) {
-            //     JPH::BoxShapeSettings settings(JPH::Vec3(0.5, 0.5, 0.5));
-            //     JPH::Ref<JPH::Shape> shape = settings.Create().Get();
-            //     Entity::add_dynamic_body(components.entity, shape);
-            // }
+        if (has_mesh_and_no_physics && ImGui::BeginMenu("Add Dynamic Body")) {
             if (ImGui::MenuItem("Convex Hull Shape")) {
-                Entity::add_convex_hull_body(components.entity);
+                Entity::add_convex_hull_body(m_selected_entity);
             }
             if (ImGui::MenuItem("Box Hull Shape")) {
-                Entity::add_box_hull_body(components.entity);
+                m_box_hull_prompt = {};
+                m_box_hull_prompt.valid = true;
+                m_box_hull_prompt.entity = m_selected_entity;
+
+                auto& mesh = m_selected_entity.get_component<Renderer::Mesh*>();
+                auto& transform = m_selected_entity.get_component<Utils::Transform>();
+
+                auto aabb = mesh->m_aabb;
+
+                glm::vec3 scale = transform.get_scale();
+                m_box_hull_prompt.info.extent = ((aabb.max - aabb.min) * 0.5F) * scale;
+                m_box_hull_prompt.info.center = ((aabb.min + aabb.max) * 0.5F) * scale;
             }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Add Light")) {
-            bool has_no_lights = components.directional == nullptr && components.point == nullptr && components.spot == nullptr;
-            bool has_no_other_lights = components.point == nullptr && components.spot == nullptr;
+            bool has_no_lights = !m_selected_entity.has_component<Renderer::Light::Pbr::Directional>()
+                && !m_selected_entity.has_component<Renderer::Light::Pbr::Point>()
+                && !m_selected_entity.has_component<Renderer::Light::Pbr::Spot>();
+
+            bool has_no_other_lights = !m_selected_entity.has_component<Renderer::Light::Pbr::Point>()
+                && !m_selected_entity.has_component<Renderer::Light::Pbr::Spot>();
+
             if (has_no_lights && ImGui::MenuItem("Add Directional Light")) {
                 Renderer::Light::Pbr::Directional info {};
-                Entity::add_pbr_directional_light(components.entity, info);
+                Entity::add_pbr_directional_light(m_selected_entity, info);
             }
             if (has_no_other_lights && ImGui::MenuItem("Add Directional Light Shadow")) {
-                Entity::add_pbr_directional_light_shadow(components.entity);
+                Entity::add_pbr_directional_light_shadow(m_selected_entity);
             }
 
-            has_no_other_lights = components.directional == nullptr && components.spot == nullptr;
+            has_no_other_lights = !m_selected_entity.has_component<Renderer::Light::Pbr::Directional>()
+                && !m_selected_entity.has_component<Renderer::Light::Pbr::Spot>();
             if (has_no_lights && ImGui::MenuItem("Add Point Light")) {
                 Renderer::Light::Pbr::Point info {};
-                Entity::add_pbr_point_light(components.entity, info);
+                Entity::add_pbr_point_light(m_selected_entity, info);
             }
             if (has_no_other_lights && ImGui::MenuItem("Add Point Light Shadow")) {
-                Entity::add_pbr_point_light_shadow(components.entity);
+                Entity::add_pbr_point_light_shadow(m_selected_entity);
             }
 
-            has_no_other_lights = components.directional == nullptr && components.point == nullptr;
+            has_no_other_lights = !m_selected_entity.has_component<Renderer::Light::Pbr::Directional>()
+                && !m_selected_entity.has_component<Renderer::Light::Pbr::Point>();
             if (has_no_lights && ImGui::MenuItem("Add Spot Light")) {
                 Renderer::Light::Pbr::Spot info {};
-                Entity::add_pbr_spot_light(components.entity, info);
+                Entity::add_pbr_spot_light(m_selected_entity, info);
             }
             if (has_no_other_lights && ImGui::MenuItem("Add Spot Light Shadow")) {
-                Entity::add_pbr_spot_light_shadow(components.entity);
+                Entity::add_pbr_spot_light_shadow(m_selected_entity);
             }
             ImGui::EndMenu();
         }
@@ -412,75 +379,55 @@ void EntitySelector::draw_add_remove_component_imgui(EntityComponents& component
     }
 
     if (ImGui::BeginPopup("Remove Component Popup")) {
-        // if (ImGui::MenuItem("Name")) {
-        // }
-        // if (components.transform != nullptr && ImGui::MenuItem("Remove Transform")) {
-        //     components.entity.remove_component<Transform>();
-        // }
-        if (components.mesh != nullptr && ImGui::MenuItem("Remove Model")) {
-            components.entity.remove_component<Renderer::Mesh*>();
-            if (components.entity.has_component<Renderer::AnimationData>()) {
-                components.entity.remove_component<Renderer::AnimationData>();
+        if (m_selected_entity.has_component<Renderer::Mesh*>() && ImGui::MenuItem("Remove Model")) {
+            Entity::remove_mesh(m_selected_entity);
+        }
+        if (m_selected_entity.has_component<PhysicsBox3d::EntityInfo>()) {
+            auto& physics_info = m_selected_entity.get_component<PhysicsBox3d::EntityInfo>();
+
+            if (physics_info.m_type == PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Static Body")) {
+                Entity::remove_physics_body(m_selected_entity);
             }
-            components.scene->m_mesh_instance_draw_cache_needs_update = true;
-            components.mesh = nullptr;
-            components.animation_data = nullptr;
+
+            if (physics_info.m_type != PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Dynamic Body")) {
+                Entity::remove_physics_body(m_selected_entity);
+            }
         }
-        if (components.physics_info != nullptr && components.physics_info->m_type == PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Static Body")) {
-            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
-            components.entity.remove_component<PhysicsBox3d::EntityInfo>();
-            components.physics_info = nullptr;
-            // components.scene->m_physics_needs_optimize = true;
-        }
-        if (components.physics_info != nullptr && components.physics_info->m_type != PhysicsBox3d::Type::Mesh && ImGui::MenuItem("Remove Dynamic Body")) {
-            components.scene->m_physics_engine->remove_body(components.physics_info->m_id);
-            components.entity.remove_component<PhysicsBox3d::EntityInfo>();
-            components.physics_info = nullptr;
-            // components.scene->m_physics_needs_optimize = true;
-        }
-        bool has_light = components.directional != nullptr || components.point != nullptr || components.spot != nullptr;
+
+        bool has_light = m_selected_entity.has_component<Renderer::Light::Pbr::Directional>()
+            || m_selected_entity.has_component<Renderer::Light::Pbr::Point>()
+            || m_selected_entity.has_component<Renderer::Light::Pbr::Spot>();
+
         if (has_light && ImGui::BeginMenu("Remove Light")) {
-            if (components.directional != nullptr && ImGui::MenuItem("Remove Directional Light")) {
-                components.entity.remove_component<Renderer::Light::Pbr::Directional>();
-                if (components.directional_shadow != nullptr) {
-                    components.entity.remove_component<Renderer::Light::Pbr::DirectionalShadow>();
-                    components.directional_shadow = nullptr;
-                }
-                components.scene->m_shaders_need_update = true;
-                components.directional = nullptr;
+            if (m_selected_entity.has_component<Renderer::Light::Pbr::Directional>()
+                && ImGui::MenuItem("Remove Directional Light")) {
+
+                Entity::remove_pbr_directional_light(m_selected_entity);
             }
-            if (components.directional_shadow != nullptr && ImGui::MenuItem("Remove Directional Light Shadow")) {
-                components.entity.remove_component<Renderer::Light::Pbr::DirectionalShadow>();
-                components.scene->m_shaders_need_update = true;
-                components.directional_shadow = nullptr;
+            if (m_selected_entity.has_component<Renderer::Light::Pbr::DirectionalShadow>()
+                && ImGui::MenuItem("Remove Directional Light Shadow")) {
+
+                Entity::remove_pbr_directional_light_shadow(m_selected_entity);
             }
-            if (components.point != nullptr && ImGui::MenuItem("Remove Point Light")) {
-                components.entity.remove_component<Renderer::Light::Pbr::Point>();
-                if (components.point_shadow != nullptr) {
-                    components.entity.remove_component<Renderer::Light::Pbr::PointShadow>();
-                    components.point_shadow = nullptr;
-                }
-                components.scene->m_shaders_need_update = true;
-                components.point = nullptr;
+            if (m_selected_entity.has_component<Renderer::Light::Pbr::Point>()
+                && ImGui::MenuItem("Remove Point Light")) {
+
+                Entity::remove_pbr_point_light(m_selected_entity);
             }
-            if (components.point_shadow != nullptr && ImGui::MenuItem("Remove Point Light Shadow")) {
-                components.entity.remove_component<Renderer::Light::Pbr::PointShadow>();
-                components.scene->m_shaders_need_update = true;
-                components.point_shadow = nullptr;
+            if (m_selected_entity.has_component<Renderer::Light::Pbr::PointShadow>()
+                && ImGui::MenuItem("Remove Point Light Shadow")) {
+
+                Entity::remove_pbr_point_light_shadow(m_selected_entity);
             }
-            if (components.spot != nullptr && ImGui::MenuItem("Remove Spot Light")) {
-                components.entity.remove_component<Renderer::Light::Pbr::Spot>();
-                if (components.spot_shadow != nullptr) {
-                    components.entity.remove_component<Renderer::Light::Pbr::SpotShadow>();
-                    components.spot_shadow = nullptr;
-                }
-                components.scene->m_shaders_need_update = true;
-                components.spot = nullptr;
+            if (m_selected_entity.has_component<Renderer::Light::Pbr::Spot>()
+                && ImGui::MenuItem("Remove Spot Light")) {
+
+                Entity::remove_pbr_spot_light(m_selected_entity);
             }
-            if (components.spot_shadow != nullptr && ImGui::MenuItem("Remove Spot Light Shadow")) {
-                components.entity.remove_component<Renderer::Light::Pbr::SpotShadow>();
-                components.scene->m_shaders_need_update = true;
-                components.spot_shadow = nullptr;
+            if (m_selected_entity.has_component<Renderer::Light::Pbr::SpotShadow>()
+                && ImGui::MenuItem("Remove Spot Light Shadow")) {
+
+                Entity::remove_pbr_spot_light_shadow(m_selected_entity);
             }
             ImGui::EndMenu();
         }
@@ -508,6 +455,48 @@ void EntitySelector::draw_model_prompt_window()
 
     if (ImGui::Button("Cancel")) {
         m_model_prompt.valid = false;
+    };
+
+    ImGui::End();
+}
+
+void EntitySelector::draw_box_hull_prompt_window()
+{
+    if (!m_box_hull_prompt.valid) {
+        return;
+    }
+
+    ImGui::Begin("Add Box Hull");
+
+    ImGui::DragFloat3("Center", &m_box_hull_prompt.info.center.x, -20.0F, 20.0F);
+    ImGui::DragFloat3("Extent", &m_box_hull_prompt.info.extent.x, -20.0F, 20.0F);
+
+    ImGui::Checkbox("Preview", &m_box_hull_prompt.preview);
+
+    if (m_box_hull_prompt.preview) {
+        Utils::AABB aabb;
+        aabb.min = m_box_hull_prompt.info.center - m_box_hull_prompt.info.extent;
+        aabb.max = m_box_hull_prompt.info.center + m_box_hull_prompt.info.extent;
+        auto mesh_transform = m_box_hull_prompt.entity.get_component<Utils::Transform>();
+
+        Utils::Transform transform;
+        transform.set_position(mesh_transform.get_position());
+        transform.set_rotation(mesh_transform.get_rotation());
+
+        aabb = aabb.transform(transform.get_model_matrix());
+
+        g_app_data->m_line_renderer->add_aabb(aabb, Utils::Color::pack(Utils::Color::Green));
+    }
+
+    if (ImGui::Button("Add")) {
+        Entity::add_box_hull_body(m_box_hull_prompt.entity, m_box_hull_prompt.info);
+        m_box_hull_prompt.valid = false;
+    };
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Cancel")) {
+        m_box_hull_prompt.valid = false;
     };
 
     ImGui::End();

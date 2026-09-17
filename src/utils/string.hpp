@@ -20,7 +20,7 @@ public:
     [[nodiscard]] char* data();
     [[nodiscard]] const char* data() const;
     [[nodiscard]] usize size() const;
-    [[nodiscard]] usize capacity() const;
+    [[nodiscard]] static constexpr usize capacity();
 
     bool operator==(StaticString other) const;
     bool operator==(std::string_view other) const;
@@ -126,7 +126,7 @@ usize StaticString<Capacity>::size() const
 }
 
 template <usize Capacity>
-usize StaticString<Capacity>::capacity() const
+constexpr usize StaticString<Capacity>::capacity()
 {
     return SIZE;
 }

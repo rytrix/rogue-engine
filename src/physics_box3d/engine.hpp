@@ -23,6 +23,7 @@ struct EntityInfo {
 
     b3ShapeId m_shape;
     Entity m_entity;
+    bool m_valid = false;
 };
 
 class Engine : public NoCopyNoMove {
@@ -39,13 +40,15 @@ public:
     [[nodiscard]] glm::vec3 get_body_pos(b3BodyId body);
     [[nodiscard]] glm::quat get_body_rot(b3BodyId body);
 
-    [[nodiscard]] b3BodyId add_body(const b3BodyDef* body);
     void remove_body(b3BodyId body);
 
     std::optional<b3BodyId> ray_cast(Utils::Ray ray, float max_distance);
  
     [[nodiscard]] EntityInfo create_mesh_body(Entity entity);
     [[nodiscard]] EntityInfo create_hull_body(Entity entity);
+
+    [[nodiscard]] EntityInfo create_box_body(Entity entity, const BoxHullInfo& info);
+    [[nodiscard]] EntityInfo create_capsule_body(Entity entity);
 
 private:
     b3WorldId m_world_id;

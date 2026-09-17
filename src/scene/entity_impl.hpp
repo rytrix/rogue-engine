@@ -5,9 +5,7 @@
 template <typename T, typename... Args>
 T& Entity::add_component(Args&&... args)
 {
-    if (has_component<T>()) {
-        remove_component<T>();
-    }
+    remove_component<T>();
     // util_assert(has_component<T>() == false, std::format("Entity already has component \"{}\"", typeid(T).name()));
     return m_scene->m_registry.emplace<T>(m_entity, std::forward<Args>(args)...);
 }
@@ -15,7 +13,9 @@ T& Entity::add_component(Args&&... args)
 template <typename T>
 void Entity::remove_component()
 {
-    m_scene->m_registry.remove<T>(m_entity);
+    if (has_component<T>()) {
+        m_scene->m_registry.remove<T>(m_entity);
+    }
 }
 
 template <typename T>

@@ -31,4 +31,4 @@ struct GlobalAppData {
     bool m_capture_mouse = true;
 };
 
-extern GlobalAppData* g_global_app_data;
+extern GlobalAppData* g_app_data;

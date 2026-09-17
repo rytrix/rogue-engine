@@ -94,8 +94,7 @@ void ModelLoader::init(const char* file_path)
         aiProcess_Triangulate
             | aiProcess_FlipUVs
             | aiProcess_CalcTangentSpace
-            | aiProcess_JoinIdenticalVertices
-            | aiProcess_GenBoundingBoxes);
+            | aiProcess_JoinIdenticalVertices);
 
     if (scene == nullptr) {
         const char* error = importer.GetErrorString();
@@ -191,6 +190,8 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
         vertex.m_pos.y = mesh->mVertices[i].y;
         vertex.m_pos.z = mesh->mVertices[i].z;
 
+        m_mesh.m_aabb.update_points(vertex.m_pos);
+
         vertex.m_norm.x = mesh->mNormals[i].x;
         vertex.m_norm.y = mesh->mNormals[i].y;
         vertex.m_norm.z = mesh->mNormals[i].z;
@@ -229,7 +230,7 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
             auto diffuse_map = load_material_texture(material, aiTextureType_DIFFUSE, scene);
             if (diffuse_map.generation.valid == 0) {
                 LOG_WARN("Using default albedo texture map");
-                m_mesh.m_texture_data.m_diffuse_textures.push_back(g_global_app_data->m_default_textures->get_albedo());
+                m_mesh.m_texture_data.m_diffuse_textures.push_back(g_app_data->m_default_textures->get_albedo());
             } else {
                 m_mesh.m_texture_data.m_diffuse_textures.push_back(diffuse_map);
             }
@@ -237,7 +238,7 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
             auto metallic_roughness_map = load_material_texture(material, aiTextureType_GLTF_METALLIC_ROUGHNESS, scene);
             if (metallic_roughness_map.generation.valid == 0) {
                 LOG_WARN("Using default metallic texture map");
-                m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(g_global_app_data->m_default_textures->get_metallic());
+                m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(g_app_data->m_default_textures->get_metallic());
             } else {
                 m_mesh.m_texture_data.m_metallic_roughness_textures.push_back(metallic_roughness_map);
             }
@@ -245,7 +246,7 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
             auto normal_map = load_material_texture(material, aiTextureType_NORMALS, scene);
             if (normal_map.generation.valid == 0) {
                 LOG_WARN("Using default normal texture map");
-                m_mesh.m_texture_data.m_normal_textures.push_back(g_global_app_data->m_default_textures->get_normal());
+                m_mesh.m_texture_data.m_normal_textures.push_back(g_app_data->m_default_textures->get_normal());
             } else {
                 m_mesh.m_texture_data.m_normal_textures.push_back(normal_map);
             }
@@ -287,15 +288,6 @@ void ModelLoader::process_mesh(aiMesh* mesh, const aiScene* scene)
             }
         }
     }
-
-    auto& aabb = m_mesh.m_aabbs.emplace_back();
-    aabb.min.x = mesh->mAABB.mMin.x;
-    aabb.min.y = mesh->mAABB.mMin.y;
-    aabb.min.z = mesh->mAABB.mMin.z;
-
-    aabb.max.x = mesh->mAABB.mMax.x;
-    aabb.max.y = mesh->mAABB.mMax.y;
-    aabb.max.z = mesh->mAABB.mMax.z;
 
     count = static_cast<GLsizei>(m_mesh.m_vertex_data.m_indices.size()) - count;
 
@@ -367,7 +359,7 @@ Handle ModelLoader::load_material_texture(const aiMaterial* mat, const aiTexture
         texture_info.mipmap_levels = 0;
         texture_info.memory_info.flip = false;
 
-        auto* texture_cache = g_global_app_data->m_texture_cache;
+        auto* texture_cache = g_app_data->m_texture_cache;
         if (embedded_texture == nullptr) {
             Utils::String texture_path = Utils::format("{}/{}", m_directory.c_str(), str.C_Str());
 

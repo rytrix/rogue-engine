@@ -136,14 +136,13 @@ glm::quat Engine::get_body_rot(b3BodyId body)
     return quat_to_quat(pos);
 }
 
-b3BodyId Engine::add_body(const b3BodyDef* body)
-{
-    return b3CreateBody(m_world_id, body);
-}
-
 void Engine::remove_body(b3BodyId body)
 {
-    b3DestroyBody(body);
+    if (b3Body_IsValid(body)) {
+        b3DestroyBody(body);
+    } else {
+        LOG_WARN("Attempted to remove an invalid body");
+    }
 }
 
 std::optional<b3BodyId> Engine::ray_cast(Utils::Ray ray, float max_distance)
@@ -175,17 +174,18 @@ EntityInfo Engine::create_mesh_body(Entity entity)
         EntityInfo info {};
         return info;
     }
-    b3ShapeDef shape_def = b3DefaultShapeDef();
-    b3BodyDef body_def = b3DefaultBodyDef();
-    body_def.type = b3BodyType::b3_staticBody;
-
-    auto body_id = add_body(&body_def);
-
-    b3ShapeId shape_id = b3CreateMeshShape(body_id, &shape_def, mesh_data, { 1.0F, 1.0F, 1.0F });
     if (entity.has_component<Deleter>()) {
         entity.remove_component<Deleter>();
     }
     entity.add_component<Deleter>([](void* user_data) { b3DestroyMesh((b3MeshData*)user_data); }, mesh_data);
+
+    b3ShapeDef shape_def = b3DefaultShapeDef();
+    b3BodyDef body_def = b3DefaultBodyDef();
+    body_def.type = b3BodyType::b3_staticBody;
+
+    auto body_id = b3CreateBody(m_world_id, &body_def);
+
+    b3ShapeId shape_id = b3CreateMeshShape(body_id, &shape_def, mesh_data, { 1.0F, 1.0F, 1.0F });
 
     EntityInfo info {};
     info.m_motion_type = motion_type(body_def.type);
@@ -194,6 +194,7 @@ EntityInfo Engine::create_mesh_body(Entity entity)
     info.m_shape = shape_id;
     info.m_should_debug_draw = false;
     info.m_entity = entity;
+    info.m_valid = true;
 
     return info;
 }
@@ -209,21 +210,25 @@ EntityInfo Engine::create_hull_body(Entity entity)
         b3_vertices.emplace_back(vec3_to_vec3(vertices.m_pos));
     }
 
-    b3HullData* hull_data = b3CreateHull(b3_vertices.data(), b3_vertices.size(), std::clamp(b3_vertices.size(), 0UL, 100UL));
+    b3HullData* hull_data = b3CreateHull(b3_vertices.data(), b3_vertices.size(), B3_MAX_HULL_VERTICES);
     if (hull_data == NULL) {
         EntityInfo info {};
         return info;
     }
+    if (entity.has_component<Deleter>()) {
+        entity.remove_component<Deleter>();
+    }
+    entity.add_component<Deleter>([](void* user_data) { b3DestroyHull((b3HullData*)user_data); }, hull_data);
+
     b3ShapeDef shape_def = b3DefaultShapeDef();
     b3BodyDef body_def = b3DefaultBodyDef();
     body_def.type = b3BodyType::b3_dynamicBody;
     body_def.position = vec3_to_vec3(transform.get_position());
     body_def.rotation = quat_to_quat(transform.get_rotation());
 
-    b3BodyId body_id = add_body(&body_def);
+    b3BodyId body_id = b3CreateBody(m_world_id, &body_def);
 
     b3ShapeId shape_id = b3CreateHullShape(body_id, &shape_def, hull_data);
-    b3DestroyHull(hull_data);
 
     EntityInfo info {};
     info.m_motion_type = motion_type(body_def.type);
@@ -232,8 +237,56 @@ EntityInfo Engine::create_hull_body(Entity entity)
     info.m_shape = shape_id;
     info.m_should_debug_draw = false;
     info.m_entity = entity;
+    info.m_valid = true;
 
     return info;
+}
+
+[[nodiscard]] EntityInfo Engine::create_box_body(Entity entity, const BoxHullInfo& info)
+{
+    // auto& mesh = entity.get_component<Renderer::Mesh*>();
+    auto& transform = entity.get_component<Utils::Transform>();
+
+    // auto aabb = mesh->m_aabb.transform(transform.get_model_matrix());
+    // // Not sure about this one honestly, I think I actually need to make a hull shape
+    // // so that the mesh is actually centered
+    // glm::vec3 center = (aabb.min + aabb.max) * 0.5F;
+    // glm::vec3 half_extents = (aabb.max - aabb.min) * 0.5F;
+
+    // auto aabb = mesh->m_aabb;
+    // glm::vec3 scale = transform.get_scale();
+    // glm::vec3 half_extents = ((aabb.max - aabb.min) * 0.5F) * scale;
+    // glm::vec3 local_center = ((aabb.min + aabb.max) * 0.5F) * scale;
+
+    LOG_DEBUG(std::format("Making box hull with extents {} {} {}", info.extent.x, info.extent.y, info.extent.z));
+
+    b3Transform b3_transform;
+    b3_transform.p = vec3_to_vec3(info.center);
+    b3_transform.q = quat_to_quat(transform.get_rotation());
+
+    b3BoxHull box = b3MakeTransformedBoxHull(info.extent.x, info.extent.y, info.extent.z, b3_transform);
+
+    b3BodyDef body_def = b3DefaultBodyDef();
+    body_def.type = b3_dynamicBody;
+    body_def.position = vec3_to_vec3(transform.get_position());
+
+    b3BodyId body_id = b3CreateBody(m_world_id, &body_def);
+
+    b3ShapeDef shape_def = b3DefaultShapeDef();
+    b3ShapeId shape_id = b3CreateHullShape(body_id, &shape_def, &box.base);
+
+    EntityInfo entity_info {};
+    entity_info.m_motion_type = motion_type(body_def.type);
+    entity_info.m_type = Type::BoxHull;
+    entity_info.m_id = body_id;
+    entity_info.m_shape = shape_id;
+    entity_info.m_should_debug_draw = false;
+    entity_info.m_entity = entity;
+    entity_info.m_valid = b3Body_IsValid(body_id);
+
+    // TODO: still needs to be serializable
+
+    return entity_info;
 }
 
 } // namespace PhysicsBox3d

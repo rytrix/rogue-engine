@@ -110,7 +110,7 @@ public:
     std::unordered_map<Utils::String, u32> m_bone_id_map;
     std::deque<Animation> m_animations;
 
-    std::vector<Utils::AABB> m_aabbs;
+    Utils::AABB m_aabb;
 
     Utils::String m_path;
 

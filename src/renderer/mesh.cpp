@@ -175,17 +175,17 @@ void Mesh::draw(Shader& shader)
     } else {
         for (usize i = 0; i < m_commands.size(); i++) {
             GLuint texture_unit = Texture::get_texture_unit();
-            auto* diffuse_texture = g_global_app_data->m_texture_cache->get(m_texture_data.m_diffuse_textures[i]);
+            auto* diffuse_texture = g_app_data->m_texture_cache->get(m_texture_data.m_diffuse_textures[i]);
             diffuse_texture->bind(texture_unit);
             shader.set_int("tex_diffuse", static_cast<int>(texture_unit));
 
             texture_unit = Texture::get_texture_unit();
-            auto* metallic_roughness_texture = g_global_app_data->m_texture_cache->get(m_texture_data.m_metallic_roughness_textures[i]);
+            auto* metallic_roughness_texture = g_app_data->m_texture_cache->get(m_texture_data.m_metallic_roughness_textures[i]);
             metallic_roughness_texture->bind(texture_unit);
             shader.set_int("tex_metallic_roughness", static_cast<int>(texture_unit));
 
             texture_unit = Texture::get_texture_unit();
-            auto* normal_texture = g_global_app_data->m_texture_cache->get(m_texture_data.m_normal_textures[i]);
+            auto* normal_texture = g_app_data->m_texture_cache->get(m_texture_data.m_normal_textures[i]);
             normal_texture->bind(texture_unit);
             shader.set_int("tex_normals", static_cast<int>(texture_unit));
 
@@ -223,8 +223,8 @@ void Mesh::upload_texture_memory_to_gpu()
         info.mipmaps = true;
         info.mipmap_levels = 0;
 
-        auto handle = g_global_app_data->m_texture_cache->create(info);
-        auto* texture = g_global_app_data->m_texture_cache->get(handle);
+        auto handle = g_app_data->m_texture_cache->create(info);
+        auto* texture = g_app_data->m_texture_cache->get(handle);
         texture->set_max_anisotropy(16);
         handles[i] = handle;
     }
@@ -232,21 +232,21 @@ void Mesh::upload_texture_memory_to_gpu()
     for (usize i = 0; i < m_texture_data.m_diffuse_textures_memory.size(); i++) {
         u32 index = m_texture_data.m_diffuse_textures_memory[i];
         if (index == UINT32_MAX) {
-            m_texture_data.m_diffuse_textures.emplace_back(g_global_app_data->m_default_textures->get_albedo());
+            m_texture_data.m_diffuse_textures.emplace_back(g_app_data->m_default_textures->get_albedo());
         } else {
             m_texture_data.m_diffuse_textures.emplace_back(handles[index]);
         }
 
         index = m_texture_data.m_metallic_roughness_textures_memory[i];
         if (index == UINT32_MAX) {
-            m_texture_data.m_metallic_roughness_textures.emplace_back(g_global_app_data->m_default_textures->get_metallic());
+            m_texture_data.m_metallic_roughness_textures.emplace_back(g_app_data->m_default_textures->get_metallic());
         } else {
             m_texture_data.m_metallic_roughness_textures.emplace_back(handles[index]);
         }
 
         index = m_texture_data.m_normal_textures_memory[i];
         if (index == UINT32_MAX) {
-            m_texture_data.m_normal_textures.emplace_back(g_global_app_data->m_default_textures->get_normal());
+            m_texture_data.m_normal_textures.emplace_back(g_app_data->m_default_textures->get_normal());
         } else {
             m_texture_data.m_normal_textures.emplace_back(handles[index]);
         }
@@ -313,19 +313,19 @@ void Mesh::setup_mesh()
         m_texture_bindless_ids.resize(m_commands.size() * 3);
         for (usize i = 0; i < m_commands.size(); i++) {
             // 1 diffuse 1 metallic_roughness 1 normal
-            auto* diffuse_texture = g_global_app_data->m_texture_cache->get(m_texture_data.m_diffuse_textures[i]);
+            auto* diffuse_texture = g_app_data->m_texture_cache->get(m_texture_data.m_diffuse_textures[i]);
             m_texture_bindless_ids.at((i * 3) + 0) = diffuse_texture->get_bindless_texture_id();
             if (!diffuse_texture->is_bindless_texture_mapped()) {
                 diffuse_texture->map_bindless_texture();
             }
 
-            auto* metallic_roughness_texture = g_global_app_data->m_texture_cache->get(m_texture_data.m_metallic_roughness_textures[i]);
+            auto* metallic_roughness_texture = g_app_data->m_texture_cache->get(m_texture_data.m_metallic_roughness_textures[i]);
             m_texture_bindless_ids.at((i * 3) + 1) = metallic_roughness_texture->get_bindless_texture_id();
             if (!metallic_roughness_texture->is_bindless_texture_mapped()) {
                 metallic_roughness_texture->map_bindless_texture();
             }
 
-            auto* normal_texture = g_global_app_data->m_texture_cache->get(m_texture_data.m_normal_textures[i]);
+            auto* normal_texture = g_app_data->m_texture_cache->get(m_texture_data.m_normal_textures[i]);
             m_texture_bindless_ids.at((i * 3) + 2) = normal_texture->get_bindless_texture_id();
             if (!normal_texture->is_bindless_texture_mapped()) {
                 normal_texture->map_bindless_texture();

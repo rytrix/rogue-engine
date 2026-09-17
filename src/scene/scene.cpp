@@ -357,12 +357,12 @@ void Scene::draw()
 
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
 
-    g_global_app_data->m_camera->update();
+    g_app_data->m_camera->update();
 
     glCullFace(GL_FRONT);
     auto directional_shadow_view = m_registry.view<Renderer::Light::Pbr::Directional, Renderer::Light::Pbr::DirectionalShadow>();
     for (auto [entity, light, shadow] : directional_shadow_view.each()) {
-        shadow.update(light, *g_global_app_data->m_camera);
+        shadow.update(light, *g_app_data->m_camera);
         shadow.shadowmap_begin();
         for (auto& mesh : m_mesh_instance_draw_cache) {
             shadow.shadowmap_draw(mesh.m_mesh);
@@ -393,15 +393,15 @@ void Scene::draw()
     }
 
     glCullFace(GL_BACK);
-    glViewport(0, 0, g_global_app_data->m_window->get_width(), g_global_app_data->m_window->get_height());
+    glViewport(0, 0, g_app_data->m_window->get_width(), g_app_data->m_window->get_height());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     for (auto& mesh_instance : m_mesh_instance_draw_cache) {
         Renderer::Shader& shader = mesh_instance.m_mesh->m_has_bones ? m_shader_bones : m_shader;
         shader.bind();
-        shader.set_mat4("proj", g_global_app_data->m_camera->get_proj());
-        shader.set_mat4("view", g_global_app_data->m_camera->get_view());
-        shader.set_vec3("view_position", g_global_app_data->m_camera->get_pos());
+        shader.set_mat4("proj", g_app_data->m_camera->get_proj());
+        shader.set_mat4("view", g_app_data->m_camera->get_view());
+        shader.set_vec3("view_position", g_app_data->m_camera->get_pos());
 
         auto pbr_directional_view = m_registry.view<Renderer::Light::Pbr::Directional>();
         auto pbr_point_view = m_registry.view<Renderer::Light::Pbr::Point>();
@@ -443,7 +443,7 @@ void Scene::draw()
 
     if (has_component<Renderer::Skybox>()) {
         auto& skybox = get_component<Renderer::Skybox>();
-        skybox.draw(*g_global_app_data->m_camera);
+        skybox.draw(*g_app_data->m_camera);
     }
 
     Renderer::Texture::reset_texture_units();
@@ -468,16 +468,16 @@ void Scene::draw_entity_wireframe(Entity entity, glm::vec4 color)
         mesh->update(1, transform_temp, animation_data_temp);
 
         m_wireframe_shader_bones.bind();
-        m_wireframe_shader_bones.set_mat4("proj", g_global_app_data->m_camera->get_proj());
-        m_wireframe_shader_bones.set_mat4("view", g_global_app_data->m_camera->get_view());
+        m_wireframe_shader_bones.set_mat4("proj", g_app_data->m_camera->get_proj());
+        m_wireframe_shader_bones.set_mat4("view", g_app_data->m_camera->get_view());
         m_wireframe_shader_bones.set_vec4("u_color", color);
         mesh->draw_untextured(m_wireframe_shader_bones);
     } else {
         mesh->update(1, transform_temp, {});
 
         m_wireframe_shader.bind();
-        m_wireframe_shader.set_mat4("proj", g_global_app_data->m_camera->get_proj());
-        m_wireframe_shader.set_mat4("view", g_global_app_data->m_camera->get_view());
+        m_wireframe_shader.set_mat4("proj", g_app_data->m_camera->get_proj());
+        m_wireframe_shader.set_mat4("view", g_app_data->m_camera->get_view());
         m_wireframe_shader.set_vec4("u_color", color);
         mesh->draw_untextured(m_wireframe_shader);
     }
@@ -504,12 +504,12 @@ void Scene::draw_debug_imgui()
         file << text;
     }
 
-    glm::vec3 cam_pos = g_global_app_data->m_camera->get_pos();
+    glm::vec3 cam_pos = g_app_data->m_camera->get_pos();
     ImGui::Text("%s", std::format("Camera Pos: {}, {}, {}", cam_pos.x, cam_pos.y, cam_pos.z).c_str());
 
-    float camera_speed = g_global_app_data->m_camera->get_speed();
+    float camera_speed = g_app_data->m_camera->get_speed();
     if (ImGui::DragFloat("Camera Speed", &camera_speed, 0.1F, 1.0F, 50.0F)) {
-        g_global_app_data->m_camera->set_speed(camera_speed);
+        g_app_data->m_camera->set_speed(camera_speed);
     }
 
     i32 i = 0;
@@ -531,7 +531,7 @@ void Scene::draw_debug_imgui()
                 ImGui::Text("%s", name.c_str());
                 ImGui::SameLine();
                 if (ImGui::Button("Select Entity")) {
-                    g_global_app_data->m_entity_selector->select_entity(Entity(this, entity));
+                    g_app_data->m_entity_selector->select_entity(Entity(this, entity));
                 }
             }
 

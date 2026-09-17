@@ -17,6 +17,8 @@ struct GlobalHeader {
     u64 offset_to_textures = 0;
     u64 offset_to_bones = 0;
     u64 offset_to_animations = 0;
+    u64 offset_to_aabb = 0;
+    char mesh_name[Utils::String::capacity()] = "unnamed mesh";
 };
 
 struct BoneNameID {
@@ -100,13 +102,11 @@ void MeshCompiler::serialize(Mesh& mesh)
 {
     util_assert(m_bytes != nullptr, "m_bytes is nullptr");
 
-    GlobalHeader initial_header;
-    m_bytes->append_bytes(&initial_header, sizeof(initial_header));
-    // TODO: include the mesh's name for debugging purposes
-    // Honestly maybe in the header?
+    GlobalHeader _temp_initial_header;
+    m_bytes->append_bytes(&_temp_initial_header, sizeof(_temp_initial_header));
     LOG_TRACE(std::format("serializing \"{}\"", mesh.m_path.c_str()));
 
-    // Append base vertices
+    // Base Vertices
     u64 base_vertices_offset = m_bytes->size();
 
     u64 size = mesh.m_vertex_data.m_base_vertices.size();
@@ -114,7 +114,7 @@ void MeshCompiler::serialize(Mesh& mesh)
     m_bytes->append_bytes(mesh.m_vertex_data.m_base_vertices.data(), size * sizeof(mesh.m_vertex_data.m_base_vertices[0]));
     LOG_TRACE(std::format("appended {} base vertices", size));
 
-    // Append vertices
+    // Vertices
     u64 vertices_offset = m_bytes->size();
 
     size = mesh.m_vertex_data.m_vertices.size();
@@ -122,7 +122,7 @@ void MeshCompiler::serialize(Mesh& mesh)
     m_bytes->append_bytes(mesh.m_vertex_data.m_vertices.data(), size * sizeof(mesh.m_vertex_data.m_vertices[0]));
     LOG_TRACE(std::format("appended {} vertices", size));
 
-    // Append indices
+    // Indices
     u64 indices_offset = m_bytes->size();
 
     size = mesh.m_vertex_data.m_indices.size();
@@ -130,13 +130,11 @@ void MeshCompiler::serialize(Mesh& mesh)
     m_bytes->append_bytes(mesh.m_vertex_data.m_indices.data(), size * sizeof(mesh.m_vertex_data.m_indices[0]));
     LOG_TRACE(std::format("appended {} indices", size));
 
-    // Append textures
+    // Textures
     u64 textures_offset = m_bytes->size();
 
     size = mesh.m_texture_data.m_texture_memory.size();
     m_bytes->append_bytes(&size, sizeof(size));
-    // This'll have to be a bit different (the model loader will need to find a different way of storing image data)
-    // Probably behind some sort of optional flag
     for (usize i = 0; i < size; i++) {
         mesh.m_texture_data.m_texture_memory[i].serialize(*m_bytes);
     }
@@ -149,7 +147,7 @@ void MeshCompiler::serialize(Mesh& mesh)
     m_bytes->append_bytes(mesh.m_texture_data.m_normal_textures_memory.data(), size * sizeof(u32));
     LOG_TRACE(std::format("appended {} texture indices", size));
 
-    // Append bones
+    // Bones
     u64 bones_offset = m_bytes->size();
 
     size = mesh.m_vertex_data.m_bones.size();
@@ -165,7 +163,7 @@ void MeshCompiler::serialize(Mesh& mesh)
     }
     LOG_TRACE(std::format("appended {} bones", size));
 
-    // Append animations
+    // Animations
     m_bytes->align();
     u64 animations_offset = m_bytes->size();
 
@@ -176,6 +174,10 @@ void MeshCompiler::serialize(Mesh& mesh)
     }
     LOG_TRACE(std::format("appended {} animations", total_animations));
 
+    // AABB
+    u64 aabb_offset = m_bytes->size();
+    m_bytes->append_bytes(&mesh.m_aabb, sizeof(mesh.m_aabb));
+
     auto* global_header = get_global_header();
     global_header->size = m_bytes->size();
     global_header->offset_to_base_vertices = base_vertices_offset;
@@ -184,6 +186,8 @@ void MeshCompiler::serialize(Mesh& mesh)
     global_header->offset_to_textures = textures_offset;
     global_header->offset_to_bones = bones_offset;
     global_header->offset_to_animations = animations_offset;
+    global_header->offset_to_aabb = aabb_offset;
+    memcpy(global_header->mesh_name, mesh.m_path.data(), mesh.m_path.capacity());
 }
 
 void MeshCompiler::deserialize(Mesh& mesh, const std::span<u8> compiled_mesh)
@@ -195,6 +199,8 @@ void MeshCompiler::deserialize(Mesh& mesh, const std::span<u8> compiled_mesh)
             .error = "Invalid file format"
         };
     }
+
+    memcpy(mesh.m_path.data(), header->mesh_name, mesh.m_path.capacity());
 
     // Base Vertices
     util_assert(compiled_mesh.size() > header->offset_to_base_vertices, "CMESH invalid size");
@@ -286,6 +292,11 @@ void MeshCompiler::deserialize(Mesh& mesh, const std::span<u8> compiled_mesh)
     for (u64 i = 0; i < size; i++) {
         ptr = mesh.m_animations[i].deserialize(ptr);
     }
+
+    // AABB
+    util_assert(compiled_mesh.size() > header->offset_to_aabb, "CMESH invalid size");
+    ptr = compiled_mesh.data() + header->offset_to_aabb;
+    std::memcpy(&mesh.m_aabb, ptr, sizeof(mesh.m_aabb));
 
     // Upload textures to the GPU
     mesh.upload_texture_memory_to_gpu();

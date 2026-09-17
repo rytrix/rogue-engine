@@ -2,6 +2,12 @@
 
 namespace Utils {
 
+void AABB::update_points(const glm::vec3& point)
+{
+    min = glm::min(min, point);
+    max = glm::max(max, point);
+}
+
 [[nodiscard]] AABB AABB::transform(const glm::mat4& transform) const
 {
     return transform_fast(transform);

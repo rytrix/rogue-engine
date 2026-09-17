@@ -3,7 +3,6 @@
 #include "../entity.hpp"
 #include "../event.hpp"
 #include "../../utils/string.hpp"
-#include "../../renderer/mesh.hpp"
 #include "../scene.hpp"
 
 class EntitySelector : public NoCopyNoMove {
@@ -22,6 +21,8 @@ public:
     Entity m_hovered_entity;
     Entity m_selected_entity;
 
+    bool m_hover_enabled = true;
+
 private:
     Scene* m_scene = nullptr;
 
@@ -32,22 +33,6 @@ private:
     };
     State m_prev_physics_state = State::Off;
 
-    struct EntityComponents {
-        Entity entity;
-        Scene* scene = nullptr;
-        Utils::String* name = nullptr;
-        Renderer::Mesh** mesh = nullptr;
-        Renderer::AnimationData* animation_data = nullptr;
-        Utils::Transform* transform = nullptr;
-        PhysicsBox3d::EntityInfo* physics_info = nullptr;
-        Renderer::Light::Pbr::Point* point = nullptr;
-        Renderer::Light::Pbr::PointShadow* point_shadow = nullptr;
-        Renderer::Light::Pbr::Directional* directional = nullptr;
-        Renderer::Light::Pbr::DirectionalShadow* directional_shadow = nullptr;
-        Renderer::Light::Pbr::Spot* spot = nullptr;
-        Renderer::Light::Pbr::SpotShadow* spot_shadow = nullptr;
-    };
-
     struct AddModelPrompt {
         bool valid = false;
         Entity entity;
@@ -55,8 +40,18 @@ private:
     };
     AddModelPrompt m_model_prompt {};
 
+    struct AddBoxHullPrompt {
+        bool valid = false;
+        Entity entity;
+        PhysicsBox3d::BoxHullInfo info;
+        bool preview = false;
+    };
+    AddBoxHullPrompt m_box_hull_prompt {};
+
     bool m_imgui_first_time = true;
     void draw_selected_entity_imgui();
-    void draw_add_remove_component_imgui(EntityComponents& components);
+    void draw_add_remove_component_imgui();
+
     void draw_model_prompt_window();
+    void draw_box_hull_prompt_window();
 };

@@ -105,9 +105,7 @@ private:
 template <typename T, typename... Args>
 T& Scene::add_component(Args&&... args)
 {
-    if (has_component<T>()) {
-        remove_component<T>();
-    }
+    remove_component<T>();
     // if (has_component<T>()) {
     //     LOG_ERROR(std::format("Scene already has component \"{}\"", typeid(T).name()));
     //     return;
@@ -119,7 +117,9 @@ T& Scene::add_component(Args&&... args)
 template <typename T>
 void Scene::remove_component()
 {
-    m_registry.ctx().erase<T>();
+    if (has_component<T>()) {
+        m_registry.ctx().erase<T>();
+    }
 }
 
 template <typename T>

@@ -50,7 +50,7 @@ void RandomSamplingTexture::bind_uniforms(Shader& shader, const char* uniform_na
 {
     Utils::String buffer;
 
-    Renderer::Texture* texture = g_global_app_data->m_texture_cache->get(m_handle);
+    Renderer::Texture* texture = g_app_data->m_texture_cache->get(m_handle);
     GLuint texture_unit = Renderer::Texture::get_texture_unit();
     texture->bind(texture_unit);
 
@@ -102,8 +102,8 @@ Handle RandomSamplingTexture::create_random_sampling_texture(i32 window_size, in
     subimage_info.type = GL_FLOAT;
     subimage_info.pixels = data.data();
 
-    Handle handle = g_global_app_data->m_texture_cache->create(texture_info);
-    Texture* texture = g_global_app_data->m_texture_cache->get(handle);
+    Handle handle = g_app_data->m_texture_cache->create(texture_info);
+    Texture* texture = g_app_data->m_texture_cache->get(handle);
     texture->sub_image(subimage_info);
 
     return handle;
