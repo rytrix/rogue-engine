@@ -34,10 +34,6 @@ void Gizmo::on_event(Event& event)
         return;
     }
 
-    if (event.m_consumed) {
-        return;
-    }
-
     if (event.m_type == Event::Type::SDL) {
         if (event.m_sdl_event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
             if (event.m_sdl_event.button.button == SDL_BUTTON_LEFT) {
@@ -137,21 +133,25 @@ void Gizmo::draw()
         return;
     }
 
-    switch (m_state) {
-        case State::Translation:
-        case State::Scale:
-            batch_lines(get_radius());
-            break;
-        case State::Rotation:
-            batch_rotations(get_radius());
-            break;
-    }
+    if (g_app_data->m_entity_selector->m_selected_entity.valid()
+        && g_app_data->m_entity_selector->m_selected_entity.has_component<Utils::Transform>()) {
+
+        switch (m_state) {
+            case State::Translation:
+            case State::Scale:
+                batch_lines(get_radius());
+                break;
+            case State::Rotation:
+                batch_rotations(get_radius());
+                break;
+        }
 #ifdef GIZMO_DEBUG_RAY
-    if (m_prev_ray.has_value()) {
-        m_app_data->line_renderer.add_ray(m_prev_ray.value(), 50.0F, Utils::Color::Red);
-    }
+        if (m_prev_ray.has_value()) {
+            m_app_data->line_renderer.add_ray(m_prev_ray.value(), 50.0F, Utils::Color::Red);
+        }
 #endif
-    imgui_ui();
+        imgui_ui();
+    }
 }
 
 void Gizmo::test_intersection()

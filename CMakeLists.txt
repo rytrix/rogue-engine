@@ -12,6 +12,7 @@ add_executable(${PROJECT_NAME}
     src/scene/scene.cpp
     src/scene/entity.cpp
     src/scene/resource_manager.cpp
+    src/scene/systems/event_bus.cpp
     src/scene/systems/gizmo.cpp
     src/scene/systems/entity_selector.cpp
 

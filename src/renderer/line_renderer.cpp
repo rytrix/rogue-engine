@@ -198,30 +198,78 @@ void LineRenderer::add_triangle(const glm::mat4& transform, glm::vec3 vert1, glm
     add_triangle(transform, vert1, vert2, vert3, Utils::Color::pack(color));
 }
 
-// This is not the way to do it, do not do this lol
-// void LineRenderer::add_mesh(const glm::mat4& transform, const Renderer::Mesh* mesh)
-// {
-//     usize offset = 0;
-//     glm::vec3 v1;
-//     glm::vec3 v2;
-//     glm::vec3 v3;
+void LineRenderer::add_capsule(const Utils::Capsule& capsule, u32 color)
+{
+    const int segments = DEFAULT_CIRCLE_SEGMENTS;
+    const f32 radius = capsule.radius;
 
-//     for (std::size_t i = 0; i < mesh->m_base_vertices.size(); i++) {
-//         auto base = mesh->m_base_vertices[i].m_base;
-//         auto count = mesh->m_base_vertices[i].m_count;
-//         u32 j = offset;
-//         while (j + 2 < count + offset) {
-//             v1 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 0) + base].m_pos;
-//             v2 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 1) + base].m_pos;
-//             v3 = mesh->m_vertex_data.m_vertices[mesh->m_vertex_data.m_indices.at(j + 2) + base].m_pos;
-//             j += 3;
+    glm::vec3 axis = capsule.center_top - capsule.center_bottom;
+    f32 length = glm::length(axis);
 
-//             add_triangle(transform, v1, v2, v3, Color::Red);
-//         }
+    // Default to pointing up if the capsule has zero height
+    glm::vec3 up = (length > 0.0001f) ? (axis / length) : glm::vec3(0.0f, 1.0f, 0.0f);
 
-//         offset += count;
-//     }
-// }
+    // Find a valid right vector by crossing 'up' with world UP or world RIGHT
+    glm::vec3 right = glm::cross(up, glm::vec3(0.0f, 1.0f, 0.0f));
+    if (glm::length(right) < 0.0001f) {
+        right = glm::cross(up, glm::vec3(1.0f, 0.0f, 0.0f));
+    }
+    right = glm::normalize(right);
+    glm::vec3 forward = glm::cross(up, right);
+
+    f32 angle_step = glm::two_pi<f32>() / segments;
+
+    for (int i = 0; i < segments; ++i) {
+        f32 a1 = i * angle_step;
+        f32 a2 = ((i + 1) % segments) * angle_step;
+
+        glm::vec3 p1 = right * glm::cos(a1) * radius + forward * glm::sin(a1) * radius;
+        glm::vec3 p2 = right * glm::cos(a2) * radius + forward * glm::sin(a2) * radius;
+
+        add_line(capsule.center_bottom + p1, capsule.center_bottom + p2, color);
+        add_line(capsule.center_top + p1, capsule.center_top + p2, color);
+
+        if (i % (segments / 4) == 0) {
+            add_line(capsule.center_bottom + p1, capsule.center_top + p1, color);
+        }
+    }
+
+    int dome_segments = segments / 2;
+    f32 dome_step = glm::pi<f32>() / dome_segments;
+
+    for (int i = 0; i < dome_segments; ++i) {
+        f32 a1 = i * dome_step;
+        f32 a2 = (i + 1) * dome_step;
+
+        f32 cos1 = glm::cos(a1), sin1 = glm::sin(a1);
+        f32 cos2 = glm::cos(a2), sin2 = glm::sin(a2);
+
+        // Top Dome (Right-Up Plane)
+        glm::vec3 tr1 = right * cos1 * radius + up * sin1 * radius;
+        glm::vec3 tr2 = right * cos2 * radius + up * sin2 * radius;
+        add_line(capsule.center_top + tr1, capsule.center_top + tr2, color);
+
+        // Top Dome (Forward-Up Plane)
+        glm::vec3 tf1 = forward * cos1 * radius + up * sin1 * radius;
+        glm::vec3 tf2 = forward * cos2 * radius + up * sin2 * radius;
+        add_line(capsule.center_top + tf1, capsule.center_top + tf2, color);
+
+        // Bottom Dome (Right-Down Plane)
+        glm::vec3 br1 = right * cos1 * radius - up * sin1 * radius;
+        glm::vec3 br2 = right * cos2 * radius - up * sin2 * radius;
+        add_line(capsule.center_bottom + br1, capsule.center_bottom + br2, color);
+
+        // Bottom Dome (Forward-Down Plane)
+        glm::vec3 bf1 = forward * cos1 * radius - up * sin1 * radius;
+        glm::vec3 bf2 = forward * cos2 * radius - up * sin2 * radius;
+        add_line(capsule.center_bottom + bf1, capsule.center_bottom + bf2, color);
+    }
+}
+
+void LineRenderer::add_capsule(const Utils::Capsule& capsule, glm::vec3 color)
+{
+    add_capsule(capsule, Utils::Color::pack(color));
+}
 
 void LineRenderer::draw(const Camera& camera)
 {
@@ -239,12 +287,13 @@ void LineRenderer::draw(const Camera& camera)
     void* ssbo_ptr = m_ssbo.get_ptr();
     memcpy(ssbo_ptr, &m_vertices[0], m_vertices.size() * sizeof(Vertex));
 
-    glDisable(GL_DEPTH_TEST);
+    // glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_ssbo.get_id());
     glDrawArrays(GL_LINES, 0, m_vertices.size());
 
-    glEnable(GL_DEPTH_TEST);
+    // glEnable(GL_DEPTH_TEST);
 
     m_vertices.clear();
     m_ssbo.increment_frame();

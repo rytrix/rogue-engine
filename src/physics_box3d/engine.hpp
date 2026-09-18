@@ -18,6 +18,10 @@ struct EntityInfo {
     b3BodyId m_id;
     MotionType m_motion_type;
     Type m_type;
+    union {
+        BoxHullInfo m_box_hull_info;
+        CapsuleInfo m_capsule_info;
+    };
 
     bool m_should_debug_draw = false;
 
@@ -48,7 +52,7 @@ public:
     [[nodiscard]] EntityInfo create_hull_body(Entity entity);
 
     [[nodiscard]] EntityInfo create_box_body(Entity entity, const BoxHullInfo& info);
-    [[nodiscard]] EntityInfo create_capsule_body(Entity entity);
+    [[nodiscard]] EntityInfo create_capsule_body(Entity entity, const CapsuleInfo& info);
 
 private:
     b3WorldId m_world_id;

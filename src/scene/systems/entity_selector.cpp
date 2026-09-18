@@ -71,19 +71,16 @@ void EntitySelector::draw()
         m_scene->draw_entity_wireframe(m_hovered_entity, glm::vec4(1.0, 0.0, 0.0, 1.0));
     }
 
-    auto& selected_entity = m_selected_entity;
-
-    if (selected_entity.valid() && selected_entity.has_component<Utils::Transform>()) {
-        auto* transform = &selected_entity.get_component<Utils::Transform>();
+    if (m_selected_entity.valid() && m_selected_entity.has_component<Utils::Transform>()) {
+        auto* transform = &m_selected_entity.get_component<Utils::Transform>();
 
         g_app_data->m_gizmo->m_transform = transform;
-        g_app_data->m_gizmo->update();
-        g_app_data->m_gizmo->draw();
     }
 
     draw_selected_entity_imgui();
     draw_model_prompt_window();
     draw_box_hull_prompt_window();
+    draw_capsule_prompt_window();
 }
 
 void EntitySelector::select_entity(Entity entity)
@@ -335,6 +332,27 @@ void EntitySelector::draw_add_remove_component_imgui()
                 m_box_hull_prompt.info.extent = ((aabb.max - aabb.min) * 0.5F) * scale;
                 m_box_hull_prompt.info.center = ((aabb.min + aabb.max) * 0.5F) * scale;
             }
+            if (ImGui::MenuItem("Capsule Shape")) {
+                m_capsule_prompt = {};
+                m_capsule_prompt.valid = true;
+                m_capsule_prompt.entity = m_selected_entity;
+
+                auto& mesh = m_selected_entity.get_component<Renderer::Mesh*>();
+                auto& transform = m_selected_entity.get_component<Utils::Transform>();
+
+                auto aabb = mesh->m_aabb;
+                glm::vec3 scale = transform.get_scale();
+
+                glm::vec3 extent = ((aabb.max - aabb.min) * 0.5F) * scale;
+                glm::vec3 center = ((aabb.min + aabb.max) * 0.5F) * scale;
+
+                f32 radius = (extent.x + extent.y + extent.z) / 3.0F;
+                m_capsule_prompt.info.center_bottom = center;
+                m_capsule_prompt.info.center_top = center;
+                m_capsule_prompt.info.center_bottom.y -= (extent.y - radius);
+                m_capsule_prompt.info.center_top.y += (extent.y - radius);
+                m_capsule_prompt.info.radius = radius;
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Add Light")) {
@@ -497,6 +515,52 @@ void EntitySelector::draw_box_hull_prompt_window()
 
     if (ImGui::Button("Cancel")) {
         m_box_hull_prompt.valid = false;
+    };
+
+    ImGui::End();
+}
+
+void EntitySelector::draw_capsule_prompt_window()
+{
+    if (!m_capsule_prompt.valid) {
+        return;
+    }
+
+    ImGui::Begin("Add Capsule");
+
+    ImGui::DragFloat3("Bottom", &m_capsule_prompt.info.center_bottom.x, -20.0F, 20.0F);
+    ImGui::DragFloat3("Top", &m_capsule_prompt.info.center_top.x, -20.0F, 20.0F);
+    ImGui::DragFloat("Radius", &m_capsule_prompt.info.radius, -20.0F, 20.0F);
+
+    ImGui::Checkbox("Preview", &m_capsule_prompt.preview);
+
+    if (m_capsule_prompt.preview) {
+        // Utils::AABB aabb;
+        // aabb.min = m_capsule_prompt.info.center - m_capsule_prompt.info.extent;
+        // aabb.max = m_capsule_prompt.info.center + m_capsule_prompt.info.extent;
+        auto mesh_transform = m_capsule_prompt.entity.get_component<Utils::Transform>();
+
+        Utils::Transform transform;
+        transform.set_position(mesh_transform.get_position());
+        transform.set_rotation(mesh_transform.get_rotation());
+
+        Utils::Capsule capsule {};
+        capsule.center_bottom = transform.get_model_matrix() * glm::vec4(m_capsule_prompt.info.center_bottom, 1.0F);
+        capsule.center_top = transform.get_model_matrix() * glm::vec4(m_capsule_prompt.info.center_top, 1.0F);
+        capsule.radius = m_capsule_prompt.info.radius;
+
+        g_app_data->m_line_renderer->add_capsule(capsule, Utils::Color::pack(Utils::Color::Green));
+    }
+
+    if (ImGui::Button("Add")) {
+        Entity::add_capsule_body(m_capsule_prompt.entity, m_capsule_prompt.info);
+        m_capsule_prompt.valid = false;
+    };
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Cancel")) {
+        m_capsule_prompt.valid = false;
     };
 
     ImGui::End();

@@ -2,6 +2,7 @@
 
 #include "../utils/math/aabb.hpp"
 #include "../utils/math/ray.hpp"
+#include "../utils/math/capsule.hpp"
 
 #include "buffer.hpp"
 #include "camera.hpp"
@@ -41,6 +42,9 @@ public:
     void add_triangle(glm::vec3 vert1, glm::vec3 vert2, glm::vec3 vert3, glm::vec3 color);
     void add_triangle(const glm::mat4& transform, glm::vec3 vert1, glm::vec3 vert2, glm::vec3 vert3, u32 color);
     void add_triangle(const glm::mat4& transform, glm::vec3 vert1, glm::vec3 vert2, glm::vec3 vert3, glm::vec3 color);
+
+    void add_capsule(const Utils::Capsule& capsule, u32 color);
+    void add_capsule(const Utils::Capsule& capsule, glm::vec3 color);
 
     void draw(const Camera& camera);
 

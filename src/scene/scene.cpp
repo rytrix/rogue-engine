@@ -237,11 +237,6 @@ void Scene::update()
 
     m_clock.update();
 
-    // if (m_physics_needs_optimize) {
-    //     // m_physics_system->optimize();
-    //     m_physics_needs_optimize = false;
-    // }
-
     if (m_physics_on) {
         m_physics_engine->update(m_clock.delta_time<float>());
 
@@ -497,11 +492,12 @@ void Scene::draw_debug_imgui()
         to_json(scene);
 
         auto text = scene.dump(2);
-        Utils::String file_name;
-        file_name.format("{}.json", m_name.c_str());
-        std::ofstream file(file_name.c_str());
+        Utils::String file_name = Utils::format("{}.json", m_name.c_str());
 
-        file << text;
+        bool result = Utils::write_file(file_name.c_str(), { text.data(), text.size() });
+        if (!result) {
+            LOG_ERROR(Utils::format("Failed to save scene to file \"{}\"", file_name.c_str()).c_str());
+        }
     }
 
     glm::vec3 cam_pos = g_app_data->m_camera->get_pos();

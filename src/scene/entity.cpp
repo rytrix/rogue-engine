@@ -120,6 +120,18 @@ void Entity::add_box_hull_body(Entity entity, const PhysicsBox3d::BoxHullInfo& i
     entity.add_component<PhysicsBox3d::EntityInfo>(entity_info);
 }
 
+void Entity::add_capsule_body(Entity entity, const PhysicsBox3d::CapsuleInfo& info)
+{
+    util_assert(entity.has_component<Renderer::Mesh*>() == true, "Cannot add physics to an entity without a mesh");
+
+    auto entity_info = entity.get_scene()->m_physics_engine->create_capsule_body(entity, info);
+    if (!entity_info.m_valid) {
+        LOG_ERROR("Failed to create capsule body");
+        return;
+    }
+    entity.add_component<PhysicsBox3d::EntityInfo>(entity_info);
+}
+
 void Entity::remove_physics_body(Entity entity)
 {
     if (entity.has_component<PhysicsBox3d::EntityInfo>()) {
@@ -242,6 +254,31 @@ void Entity::to_json(nlohmann::json& json, Entity entity)
             json["physics_body"] = "Mesh";
         } else if (info.m_type == PhysicsBox3d::Type::ConvexHull) {
             json["physics_body"] = "ConvexHull";
+        } else if (info.m_type == PhysicsBox3d::Type::BoxHull) {
+            json["physics_body"] = "BoxHull";
+            json["physics_info"]["center"] = {
+                info.m_box_hull_info.center.x,
+                info.m_box_hull_info.center.y,
+                info.m_box_hull_info.center.z,
+            };
+            json["physics_info"]["extent"] = {
+                info.m_box_hull_info.extent.x,
+                info.m_box_hull_info.extent.y,
+                info.m_box_hull_info.extent.z,
+            };
+        } else if (info.m_type == PhysicsBox3d::Type::Capsule) {
+            json["physics_body"] = "Capsule";
+            json["physics_info"]["center-bottom"] = {
+                info.m_capsule_info.center_bottom.x,
+                info.m_capsule_info.center_bottom.y,
+                info.m_capsule_info.center_bottom.z,
+            };
+            json["physics_info"]["center-top"] = {
+                info.m_capsule_info.center_top.x,
+                info.m_capsule_info.center_top.y,
+                info.m_capsule_info.center_top.z,
+            };
+            json["physics_info"]["radius"] = info.m_capsule_info.radius;
         }
     }
 
@@ -377,6 +414,62 @@ void Entity::from_json(nlohmann::json& json, Entity entity)
             Entity::add_static_body(entity);
         } else if (physics_body == "ConvexHull") {
             Entity::add_convex_hull_body(entity);
+        } else if (physics_body == "BoxHull") {
+            if (json.contains("physics_info")
+                && json["physics_info"].contains("center")
+                && json["physics_info"]["center"].is_array()
+                && json["physics_info"]["center"].size() == 3
+                && json["physics_info"].contains("extent")
+                && json["physics_info"]["extent"].is_array()
+                && json["physics_info"]["extent"].size() == 3) {
+
+                PhysicsBox3d::BoxHullInfo info;
+                auto center_json = json["physics_info"]["center"];
+                auto extent_json = json["physics_info"]["extent"];
+
+                info.center = {
+                    center_json[0].get<float>(),
+                    center_json[1].get<float>(),
+                    center_json[2].get<float>()
+                };
+                info.extent = {
+                    extent_json[0].get<float>(),
+                    extent_json[1].get<float>(),
+                    extent_json[2].get<float>()
+                };
+
+                Entity::add_box_hull_body(entity, info);
+            }
+        } else if (physics_body == "Capsule") {
+            if (json.contains("physics_info")
+                && json["physics_info"].contains("center-bottom")
+                && json["physics_info"]["center-bottom"].is_array()
+                && json["physics_info"]["center-bottom"].size() == 3
+                && json["physics_info"].contains("center-top")
+                && json["physics_info"]["center-top"].is_array()
+                && json["physics_info"]["center-top"].size() == 3
+                && json["physics_info"].contains("radius")
+                && json["physics_info"]["radius"].is_number()) {
+
+                PhysicsBox3d::CapsuleInfo info;
+                auto bottom_json = json["physics_info"]["center-bottom"];
+                auto top_json = json["physics_info"]["center-top"];
+                auto radius_json = json["physics_info"]["radius"];
+
+                info.center_bottom = {
+                    bottom_json[0].get<float>(),
+                    bottom_json[1].get<float>(),
+                    bottom_json[2].get<float>()
+                };
+                info.center_top = {
+                    top_json[0].get<float>(),
+                    top_json[1].get<float>(),
+                    top_json[2].get<float>()
+                };
+                info.radius = radius_json.get<float>();
+
+                Entity::add_capsule_body(entity, info);
+            }
         }
     }
 

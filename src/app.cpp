@@ -31,14 +31,20 @@ void App::construct_globals()
 
     g_app_data->m_line_renderer = construct<Renderer::LineRenderer>(10000);
 
-    g_app_data->m_gizmo = construct<Gizmo>();
+    g_app_data->m_event_bus = construct<EventBus>();
+
     g_app_data->m_entity_selector = construct<EntitySelector>(m_scene);
+    g_app_data->m_gizmo = construct<Gizmo>();
+
+    g_app_data->m_event_bus->add_system(g_app_data->m_entity_selector);
+    g_app_data->m_event_bus->add_system(g_app_data->m_gizmo);
 }
 
 void App::destroy_globals()
 {
     std::destroy_at(g_app_data->m_entity_selector);
     std::destroy_at(g_app_data->m_gizmo);
+    std::destroy_at(g_app_data->m_event_bus);
     std::destroy_at(g_app_data->m_line_renderer);
     std::destroy_at(g_app_data->m_text_renderer);
     std::destroy_at(g_app_data->m_default_textures);
@@ -52,12 +58,11 @@ App::App()
 {
     construct_globals();
 
-    m_scene->m_name = "default_scene";
-
     Renderer::SkyboxInfo skybox_info {};
     skybox_info.file = "res/skyboxes/Cubemap_Sky_14-512x512.png";
     m_scene->add_component<Renderer::Skybox>(skybox_info);
 
+    m_scene->m_name = "default_scene";
     std::vector<char> json_buffer;
     auto json_result = Utils::read_file(json_buffer, "default_scene.json");
     if (json_result) {
@@ -95,8 +100,7 @@ App::App()
         engine_event.m_sdl_event = event;
         engine_event.m_consumed = false;
 
-        g_app_data->m_gizmo->on_event(engine_event);
-        g_app_data->m_entity_selector->on_event(engine_event);
+        g_app_data->m_event_bus->handle_event(engine_event);
     });
 
     m_scene->update();
@@ -181,24 +185,15 @@ void App::run()
         scancodes();
 
         m_scene->update();
-        g_app_data->m_entity_selector->update();
+        g_app_data->m_event_bus->update();
 
         m_scene->draw();
-        g_app_data->m_entity_selector->draw();
+        g_app_data->m_event_bus->draw();
 
         // TODO:
         // if (m_draw_bodies) {
         //     m_scene->m_physics_system->draw_bodies();
         // }
-        if (m_draw_bodies) {
-            auto entity = m_scene->get_entity_by_name("Defeated");
-            auto* mesh = entity.get_component<Renderer::Mesh*>();
-            auto& transform = entity.get_component<Utils::Transform>();
-
-            g_app_data->m_line_renderer->add_aabb(
-                mesh->m_aabb.transform(transform.get_model_matrix()),
-                Utils::Color::pack(Utils::Color::Green));
-        }
 
         g_app_data->m_line_renderer->draw(*g_app_data->m_camera);
 
@@ -206,40 +201,45 @@ void App::run()
             g_app_data->m_window->get_height() - g_app_data->m_text_renderer->get_max_pixel_height(),
             Utils::format("Framerate {}", m_fps).c_str(), glm::vec3 { 1.0F });
 
-        const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 20, main_viewport->WorkPos.y + 20), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_FirstUseEver);
-
-        // Main body of the Demo window starts here.
-        if (!ImGui::Begin("Debug Window", nullptr, 0)) {
-            // Early out if the window is collapsed, as an optimization.
-            ImGui::End();
-            return;
-        }
-
-        if (ImGui::Checkbox("Toggle vsync", &m_vsync)) {
-            LOG_INFO(std::format("Setting swap interval to {}", m_vsync));
-            if (m_vsync) {
-                g_app_data->m_window->set_swap_interval(1);
-            } else {
-                g_app_data->m_window->set_swap_interval(0);
-            }
-        }
-
-        ImGui::Checkbox("Toggle physics", &m_scene->m_physics_on);
-
-        ImGui::Checkbox("Toggle draw physics bodies", &m_draw_bodies);
-
-        if (ImGui::Button("Spawn 300 cubes")) {
-            spawn_300_cubes();
-        }
-        
-        ImGui::Checkbox("Enable entity selector", &g_app_data->m_entity_selector->m_hover_enabled);
-
-        if (ImGui::CollapsingHeader(m_scene->m_name.c_str())) {
-            m_scene->draw_debug_imgui();
-        }
-
-        ImGui::End();
+        draw_imgui_main_window();
     });
+}
+
+void App::draw_imgui_main_window()
+{
+    const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 20, main_viewport->WorkPos.y + 20), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_FirstUseEver);
+
+    // Main body of the Demo window starts here.
+    if (!ImGui::Begin("Debug Window", nullptr, 0)) {
+        // Early out if the window is collapsed, as an optimization.
+        ImGui::End();
+        return;
+    }
+
+    if (ImGui::Checkbox("Toggle vsync", &m_vsync)) {
+        LOG_INFO(std::format("Setting swap interval to {}", m_vsync));
+        if (m_vsync) {
+            g_app_data->m_window->set_swap_interval(1);
+        } else {
+            g_app_data->m_window->set_swap_interval(0);
+        }
+    }
+
+    ImGui::Checkbox("Toggle physics", &m_scene->m_physics_on);
+
+    ImGui::Checkbox("Toggle draw physics bodies", &m_draw_bodies);
+
+    if (ImGui::Button("Spawn 300 cubes")) {
+        spawn_300_cubes();
+    }
+
+    ImGui::Checkbox("Enable entity selector", &g_app_data->m_entity_selector->m_hover_enabled);
+
+    if (ImGui::CollapsingHeader(m_scene->m_name.c_str())) {
+        m_scene->draw_debug_imgui();
+    }
+
+    ImGui::End();
 }

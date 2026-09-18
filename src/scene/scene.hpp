@@ -1,6 +1,5 @@
 #pragma once
 
-// #include "../physics_jolt/engine.hpp"
 #include "../physics_box3d/engine.hpp"
 
 #include "../utils/deltatime.hpp"
@@ -23,14 +22,8 @@ public:
     void update();
 
     void draw();
-
     void draw_entity_wireframe(Entity entity, glm::vec4 color);
-
     void draw_debug_imgui();
-
-    const Utils::DeltaTime& get_clock();
-
-    // ECS components
 
     Entity create_entity();
     void remove_entity(Entity entity);
@@ -40,29 +33,13 @@ public:
     void to_json(nlohmann::json& json);
     void from_json(nlohmann::json& json);
 
-    // Crashes if the scene already has this component
-    template <typename T, typename... Args>
-    T& add_component(Args&&... args);
-
-    template <typename T>
-    void remove_component();
-
-    template <typename T>
-    T& get_component();
-
-    template <typename T>
-    bool has_component();
+    const Utils::DeltaTime& get_clock();
 
     bool m_physics_on = false;
-
     Utils::String m_name;
-
     Utils::DeltaTime m_clock;
-
-    entt::registry m_registry;
-
-    // std::unique_ptr<Physics::System> m_physics_system = nullptr;
     std::unique_ptr<PhysicsBox3d::Engine> m_physics_engine = nullptr;
+    entt::registry m_registry;
 
 private:
     void compile_shaders();
@@ -99,7 +76,18 @@ private:
 
     Renderer::RandomSamplingTexture m_random_sampling_texture;
 
-    // bool m_physics_needs_optimize = false;
+public:
+    template <typename T, typename... Args>
+    T& add_component(Args&&... args);
+
+    template <typename T>
+    void remove_component();
+
+    template <typename T>
+    T& get_component();
+
+    template <typename T>
+    bool has_component();
 };
 
 template <typename T, typename... Args>

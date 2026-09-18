@@ -13,6 +13,7 @@ namespace Renderer::Light::Pbr {
 
 namespace PhysicsBox3d {
     struct BoxHullInfo;
+    struct CapsuleInfo;
 }
 
 class Entity {
@@ -45,6 +46,7 @@ public:
     static void add_static_body(Entity entity);
     static void add_convex_hull_body(Entity entity);
     static void add_box_hull_body(Entity entity, const PhysicsBox3d::BoxHullInfo& info);
+    static void add_capsule_body(Entity entity, const PhysicsBox3d::CapsuleInfo& info);
     static void add_pbr_directional_light(Entity entity, Renderer::Light::Pbr::Directional& info);
     static void add_pbr_directional_light_shadow(Entity entity);
     static void add_pbr_point_light(Entity entity, Renderer::Light::Pbr::Point& info);

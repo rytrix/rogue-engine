@@ -244,19 +244,7 @@ EntityInfo Engine::create_hull_body(Entity entity)
 
 [[nodiscard]] EntityInfo Engine::create_box_body(Entity entity, const BoxHullInfo& info)
 {
-    // auto& mesh = entity.get_component<Renderer::Mesh*>();
     auto& transform = entity.get_component<Utils::Transform>();
-
-    // auto aabb = mesh->m_aabb.transform(transform.get_model_matrix());
-    // // Not sure about this one honestly, I think I actually need to make a hull shape
-    // // so that the mesh is actually centered
-    // glm::vec3 center = (aabb.min + aabb.max) * 0.5F;
-    // glm::vec3 half_extents = (aabb.max - aabb.min) * 0.5F;
-
-    // auto aabb = mesh->m_aabb;
-    // glm::vec3 scale = transform.get_scale();
-    // glm::vec3 half_extents = ((aabb.max - aabb.min) * 0.5F) * scale;
-    // glm::vec3 local_center = ((aabb.min + aabb.max) * 0.5F) * scale;
 
     LOG_DEBUG(std::format("Making box hull with extents {} {} {}", info.extent.x, info.extent.y, info.extent.z));
 
@@ -278,13 +266,43 @@ EntityInfo Engine::create_hull_body(Entity entity)
     EntityInfo entity_info {};
     entity_info.m_motion_type = motion_type(body_def.type);
     entity_info.m_type = Type::BoxHull;
+    entity_info.m_box_hull_info = info;
     entity_info.m_id = body_id;
     entity_info.m_shape = shape_id;
     entity_info.m_should_debug_draw = false;
     entity_info.m_entity = entity;
     entity_info.m_valid = b3Body_IsValid(body_id);
 
-    // TODO: still needs to be serializable
+    return entity_info;
+}
+
+[[nodiscard]] EntityInfo Engine::create_capsule_body(Entity entity, const CapsuleInfo& info)
+{
+    auto& transform = entity.get_component<Utils::Transform>();
+
+    b3BodyDef body_def = b3DefaultBodyDef();
+    body_def.type = b3_dynamicBody;
+    body_def.position = vec3_to_vec3(transform.get_position());
+    body_def.rotation = quat_to_quat(transform.get_rotation());
+    b3BodyId body_id = b3CreateBody(m_world_id, &body_def);
+
+    b3Capsule capsule_def {};
+    capsule_def.center1 = vec3_to_vec3(info.center_bottom);
+    capsule_def.center2 = vec3_to_vec3(info.center_top);
+    capsule_def.radius = info.radius;
+
+    b3ShapeDef shape_def = b3DefaultShapeDef();
+    b3ShapeId shape_id = b3CreateCapsuleShape(body_id, &shape_def, &capsule_def);
+
+    EntityInfo entity_info {};
+    entity_info.m_motion_type = motion_type(body_def.type);
+    entity_info.m_type = Type::Capsule;
+    entity_info.m_capsule_info = info;
+    entity_info.m_id = body_id;
+    entity_info.m_shape = shape_id;
+    entity_info.m_should_debug_draw = false;
+    entity_info.m_entity = entity;
+    entity_info.m_valid = b3Body_IsValid(body_id);
 
     return entity_info;
 }

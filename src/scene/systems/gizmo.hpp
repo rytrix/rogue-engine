@@ -2,11 +2,12 @@
 
 struct GlobalAppData;
 
+#include "system.hpp"
 #include "../../utils/transform.hpp"
 
 #include "../event.hpp"
 
-class Gizmo {
+class Gizmo : public NoCopyNoMove, public System {
 public:
     enum class State {
         Translation,
@@ -20,12 +21,12 @@ public:
     void init();
     void init(Utils::Transform* transform);
 
-    void on_event(Event& event);
-    void update();
+    void on_event(Event& event) override;
+    void update() override;
 
     // This function only batches to the Line Renderer
     // app_data->debug_renderer.draw() has to be called after
-    void draw();
+    void draw() override;
 
     State m_state = State::Translation;
     f32 m_radius = 2.0;
